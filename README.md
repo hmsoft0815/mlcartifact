@@ -136,6 +136,55 @@ func main() {
 
 ---
 
+## CLI Usage
+
+The `artifact-cli` tool allows you to interact with the storage service directly from your terminal.
+
+### Connection
+The CLI connects to the gRPC API of the server. You can specify the address via an environment variable or a flag.
+
+```bash
+# Default: localhost:9590
+export ARTIFACT_GRPC_ADDR=localhost:9590
+
+# Or use the flag
+artifact-cli -addr localhost:50051 <command>
+```
+
+### Examples
+
+**List artifacts:**
+```bash
+# List all artifacts (global + your user if ID is set)
+artifact-cli list
+
+# List with pagination and user filter
+artifact-cli list --limit 10 --offset 0 --user my-user-id
+```
+
+**Upload a file:**
+```bash
+# Simple upload
+artifact-cli create ./my-data.json
+
+# Detailed upload with metadata
+# Note: 'expires' is in hours (default: 24)
+artifact-cli create ./report.pdf --name "Final Report" --description "Monthly analysis" --user "analyst-1" --expires 72
+```
+
+**Download an artifact:**
+```bash
+# Download by ID or filename to a local path
+artifact-cli download xyz123 ./downloaded-report.pdf
+```
+
+**Delete an artifact:**
+```bash
+artifact-cli delete xyz123 --user "analyst-1"
+```
+
+---
+
 ## Configuration (Server)
 
 | Flag | Default | Description |

@@ -136,6 +136,55 @@ func main() {
 
 ---
 
+## CLI Nutzung
+
+Das `artifact-cli` Tool ermöglicht die direkte Interaktion mit dem Speicher-Dienst über das Terminal.
+
+### Verbindung
+Der Client verbindet sich mit der gRPC-Schnittstelle des Servers. Die Adresse kann per Umgebungsvariable oder Flag gesetzt werden.
+
+```bash
+# Standard: localhost:9590
+export ARTIFACT_GRPC_ADDR=localhost:9590
+
+# Oder per Flag
+artifact-cli -addr localhost:50051 <befehl>
+```
+
+### Beispiele
+
+**Artefakte auflisten:**
+```bash
+# Alle Artefakte anzeigen (Global + eigene User-ID falls gesetzt)
+artifact-cli list
+
+# Mit Paginierung und Benutzer-Filter
+artifact-cli list --limit 10 --offset 0 --user meine-id
+```
+
+**Datei hochladen:**
+```bash
+# Einfacher Upload
+artifact-cli create ./daten.json
+
+# Detaillierter Upload mit Metadaten
+# Hinweis: 'expires' wird in Stunden angegeben (Standard: 24)
+artifact-cli create ./bericht.pdf --name "Monatsbericht" --description "Analyse Q1" --user "analyst-1" --expires 72
+```
+
+**Artefakt herunterladen:**
+```bash
+# Per ID oder Dateiname an einen lokalen Zielpfad laden
+artifact-cli download xyz123 ./mein-bericht.pdf
+```
+
+**Artefakt löschen:**
+```bash
+artifact-cli delete xyz123 --user "analyst-1"
+```
+
+---
+
 ## Konfiguration (Server)
 
 | Flag | Standard | Beschreibung |

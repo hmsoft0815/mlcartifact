@@ -45,6 +45,10 @@ archives:
       - LICENSE
       - README.md
       - README.de.md
+      - src: client-ts/dist/**/*
+        dst: client-ts
+      - src: client-ts/package.json
+        dst: client-ts/package.json
 
 checksum:
   name_template: "checksums.txt"

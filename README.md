@@ -1,265 +1,176 @@
-# mlcartifact
+# mlcartifact — The Shared Memory Layer for MCP Ecosystems
 
-![mlcartifact Workflow and Logo](assets/mlcartifact2.png)
+> **Don't route large data through the LLM.** Let MCP servers write files to a shared store and exchange only an ID. The LLM decides what to do next — without ever seeing the raw data.
+
+![mlcartifact Architecture](docs/how_it_works.png)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/hmsoft0815/mlcartifact.svg)](https://pkg.go.dev/github.com/hmsoft0815/mlcartifact)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A Go library for communicating with the **artifact storage service** via gRPC.
-Includes the server (`artifact-server`) and a command-line client (`artifact-cli`).
-
-Copyright (c) 2026 Michael Lechner. All rights reserved.
-Licensed under the MIT License.
+Copyright (c) 2026 Michael Lechner. Licensed under the MIT License.
 
 > 🇩🇪 [Deutsche Version](README.de.md)
 
-## Why Model Context Protocol (MCP)?
+---
 
-AI agents often need to generate files (data, reports, code) or read existing context to perform tasks. The **Model Context Protocol** provides a standardized interface for agents to interact with tools.
+## The Problem: Large Data Doesn't Belong in LLM Context
 
-`mlcartifact` solves the "fleeting context" problem:
-- **Persistence**: Agents can save state or generated files that persist across sessions.
-- **Collaboration**: Multiple agents (or even different MCP servers like `wollmilchsau`) can share and exchange data via a central hub.
-- **Portability**: Files are stored in a standardized way and can be accessed via gRPC, HTTP/SSE, or standard I/O.
+Imagine a SQL MCP server that returns 50,000 rows. Or a report generator that produces a 2MB PDF. If these results flow through the LLM's context window, you:
+
+- **Waste tokens** — massively
+- **Hit context limits** — frequently
+- **Slow everything down** — unnecessarily
+
+**mlcartifact** is the solution: a shared artifact store. MCP servers write their output directly to it and tell the LLM only: *"Done. Artifact ID: `abc123`. Columns: name, total, date."*
 
 ---
 
-## Overview
-
-`mlcartifact` provides a clean Go client to read, write, list and delete artifacts
-from a shared storage service. It is designed to be used by AI agents and MCP servers
-that need to exchange files (reports, code, data) across tool boundaries.
+## The Pattern: MCP Server-to-Server Data Exchange
 
 ```
-┌──────────────────────────────────────────────┐
-│             Your App / MCP Server            │
-│                                              │
-│   import "github.com/hmsoft0815/mlcartifact" │
-│   client, _ := mlcartifact.NewClient()       │
-│   client.Write(ctx, "report.md", data)       │
-└────────────────────┬─────────────────────────┘
-                     │ gRPC (:9590)
-           ┌─────────▼──────────┐
-           │   artifact-server  │
-           │  (MCP + gRPC API)  │
-           └────────────────────┘
+LLM: "Run the quarterly SQL report and turn it into a PDF."
+
+  MCP Server A (SQL)       mlcartifact         MCP Server B (PDF)
+       │                       │                       │
+       │── write_artifact() ──▶│                       │
+       │   report.csv (2MB)    │                       │
+       │◀── artifact ID: abc123│                       │
+       │                       │                       │
+       └── tells LLM: "Done."  │                       │
+                               │                       │
+LLM: "PDF Server: generate a PDF from artifact abc123."
+                               │                       │
+                               │◀── read_artifact(id) ─│
+                               │    (reads 2MB CSV)    │
+                               │──────────────────────▶│
 ```
+
+**The big data never flows through the LLM.** Only artifact IDs are exchanged. The LLM orchestrates — it doesn't carry data.
 
 ---
 
-## Components
+## What's in This Repository
 
-| Path | Description |
-|------|-------------|
-| `.` | Go library — `import "github.com/hmsoft0815/mlcartifact"` |
-| `cmd/server` | Standalone artifact storage server (gRPC + MCP stdio/SSE) |
-| `cmd/cli` | Command-line client for interacting with the server |
-
----
-
-## Installation
-
-### Library
-
-```bash
-go get github.com/hmsoft0815/mlcartifact
-```
-
-### Installation via Script (Linux/macOS)
-
-The fastest way to install both server and CLI:
-
-```bash
-curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
-```
-
-### Server & CLI (Pre-built Binaries)
-
-**The easiest way:** Download the latest binaries for Windows, Linux, or macOS from the **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)** page.
-
-### Installation via Go
-If you have Go installed:
-```bash
-# Server
-go install github.com/hmsoft0815/mlcartifact/cmd/server@latest
-
-# CLI
-go install github.com/hmsoft0815/mlcartifact/cmd/cli@latest
-```
+| Component | Description |
+|---|---|
+| **`artifact-server`** | MCP + gRPC server. Stores and serves artifacts. Speaks stdio and SSE. |
+| **`artifact-cli`** | Command-line tool to upload, download, list, and delete artifacts. |
+| **Go library** | `import "github.com/hmsoft0815/mlcartifact"` — embed directly in any MCP server. |
 
 ---
 
 ## Quick Start
 
-### Start the server
+### Install
 
 ```bash
-# Via stdio (default, for MCP integration)
-artifact-server
+# via install script (Linux/macOS)
+curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
 
-# Via SSE (for network access)
+# or via Go
+go install github.com/hmsoft0815/mlcartifact/cmd/server@latest
+go install github.com/hmsoft0815/mlcartifact/cmd/cli@latest
+```
+
+Pre-built `.deb`, `.rpm`, and binaries on **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)**.
+
+### Start the Server
+
+```bash
+# stdio mode (for Claude Desktop / MCP)
+artifact-server -data-dir /var/artifacts
+
+# SSE/HTTP mode (for remote MCP servers)
 artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
 ```
 
-### Use the library
+### Use the Go Library in Your MCP Server
 
 ```go
-package main
+import "github.com/hmsoft0815/mlcartifact"
 
-import (
-    "context"
-    "fmt"
+// Connect (reads ARTIFACT_GRPC_ADDR env var, defaults to :9590)
+client, _ := mlcartifact.NewClient()
+defer client.Close()
 
-    "github.com/hmsoft0815/mlcartifact"
+// Store a large result — returns an ID, not the data
+resp, _ := client.Write(ctx, "report.csv", csvData,
+    mlcartifact.WithMimeType("text/csv"),
+    mlcartifact.WithExpiresHours(24),
 )
 
-func main() {
-    // Connects to ARTIFACT_GRPC_ADDR env var, defaults to :9590
-    client, err := mlcartifact.NewClient()
-    if err != nil {
-        panic(err)
-    }
-    defer client.Close()
-
-    ctx := context.Background()
-
-    // Write an artifact
-    resp, err := client.Write(ctx, "report.md", []byte("# Hello World"),
-        mlcartifact.WithMimeType("text/markdown"),
-        mlcartifact.WithExpiresHours(48),
-    )
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Artifact ID:", resp.Id)
-
-    // Read it back
-    data, err := client.Read(ctx, resp.Id)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Content:", string(data.Content))
-}
-```
-
----
-
-## CLI Usage
-
-The `artifact-cli` tool allows you to interact with the storage service directly from your terminal.
-
-### Connection
-The CLI connects to the gRPC API of the server. You can specify the address via an environment variable or a flag.
-
-```bash
-# Default: localhost:9590
-export ARTIFACT_GRPC_ADDR=localhost:9590
-
-# Or use the flag
-artifact-cli -addr localhost:50051 <command>
-```
-
-### Examples
-
-**List artifacts:**
-```bash
-# List all artifacts (global + your user if ID is set)
-artifact-cli list
-
-# List with pagination and user filter
-artifact-cli list --limit 10 --offset 0 --user my-user-id
-```
-
-**Upload a file:**
-```bash
-# Simple upload
-artifact-cli create ./my-data.json
-
-# Detailed upload with metadata
-# Note: 'expires' is in hours (default: 24)
-artifact-cli create ./report.pdf --name "Final Report" --description "Monthly analysis" --user "analyst-1" --expires 72
-```
-
-**Download an artifact:**
-```bash
-# Download by ID or filename to a local path
-artifact-cli download xyz123 ./downloaded-report.pdf
-```
-
-**Delete an artifact:**
-```bash
-artifact-cli delete xyz123 --user "analyst-1"
+// Tell the LLM: "Done. ID: abc123. Columns: name, total, date."
+fmt.Println("artifact_id:", resp.Id)
 ```
 
 ---
 
 ## Claude Desktop Integration
 
-To use `mlcartifact` as a tool in Claude Desktop, add it to your configuration file:
-
-- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-### Standard Configuration (via Stdio)
-This is the easiest way. Claude starts the server automatically when needed.
-
 ```json
 {
   "mcpServers": {
     "mlcartifact": {
-      "command": "/absolute/path/to/artifact-server",
-      "args": ["-data-dir", "/your/absolute/path/to/artifacts"]
+      "command": "/path/to/artifact-server",
+      "args": ["-data-dir", "/your/artifacts"]
     }
   }
 }
 ```
 
-### Network Configuration (via SSE)
-If the server is already running on your network:
-
+Or connect to a running instance via SSE:
 ```json
 {
   "mcpServers": {
     "mlcartifact": {
-      "sse": {
-        "url": "http://localhost:8082/sse"
-      }
+      "sse": { "url": "http://localhost:8082/sse" }
     }
   }
 }
 ```
-
----
-
-## Configuration (Server)
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-addr` | _(empty)_ | SSE listen address. If empty, uses stdio. |
-| `-grpc-addr` | `:9590` | gRPC listen address |
-| `-data-dir` | `.artifacts` | Directory for artifact storage |
-| `-mcp-list-limit` | `100` | Max items returned by `list_artifacts` |
-
-### Environment Variables (Library)
-
-| Variable | Description |
-|----------|-------------|
-| `ARTIFACT_GRPC_ADDR` | gRPC address to connect to (default: `:9590`) |
-| `ARTIFACT_SOURCE` | Default source tag for written artifacts |
-| `ARTIFACT_USER_ID` | Default user ID for artifact operations |
 
 ---
 
 ## MCP Tools
 
-When running as an MCP server, `artifact-server` exposes these tools:
-
 | Tool | Description |
-|------|-------------|
-| `write_artifact` | Save a file to the artifact store |
+|---|---|
+| `write_artifact` | Save a file — returns an ID |
 | `read_artifact` | Retrieve a file by ID or filename |
-| `list_artifacts` | List all artifacts for a user |
-| `delete_artifact` | Delete an artifact permanently |
+| `list_artifacts` | List stored artifacts |
+| `delete_artifact` | Delete permanently |
+
+---
+
+## CLI Usage
+
+```bash
+artifact-cli create ./report.csv --name "Q1 Report" --expires 72
+artifact-cli download abc123 ./local-copy.csv
+artifact-cli list
+artifact-cli delete abc123
+```
+
+Connect via `ARTIFACT_GRPC_ADDR` env var (default: `localhost:9590`) or `-addr` flag.
+
+---
+
+## Server Configuration
+
+| Flag | Default | Description |
+|---|---|---|
+| `-addr` | _(empty)_ | SSE listen address. Empty = stdio mode. |
+| `-grpc-addr` | `:9590` | gRPC address for library connections |
+| `-data-dir` | `.artifacts` | Storage directory |
+| `-mcp-list-limit` | `100` | Max items from `list_artifacts` |
+
+**Environment variables (library):**
+
+| Variable | Description |
+|---|---|
+| `ARTIFACT_GRPC_ADDR` | gRPC server address (default: `:9590`) |
+| `ARTIFACT_SOURCE` | Default source tag |
+| `ARTIFACT_USER_ID` | Default user ID |
 
 ---
 
@@ -267,9 +178,9 @@ When running as an MCP server, `artifact-server` exposes these tools:
 
 ```
 .artifacts/
-├── global/              # Artifacts without a user ID
+├── global/
 │   ├── {id}_{filename}
-│   └── {id}_{filename}.json  # Metadata sidecar
+│   └── {id}_{filename}.json   # metadata sidecar
 └── users/
     └── {user_id}/
         ├── {id}_{filename}
@@ -281,26 +192,19 @@ When running as an MCP server, `artifact-server` exposes these tools:
 ## Development
 
 ```bash
-# Run all tests
-task test
-
-# Build all binaries
-task build
-
-# Build server only
-task build-server
+task test         # run all tests
+task build        # build all binaries
+task build-server # server only
 ```
-
-See the [Taskfile](Taskfile.yml) for all available commands.
 
 ---
 
 ## Roadmap
 
-- [ ] **TypeScript / Node.js SDK**: For building Node-based MCP servers and web integrations.
-- [ ] **Python SDK**: For seamless integration into the AI/ML ecosystem (LangChain, AutoGen).
-- [ ] **Docker Image**: Pre-configured `artifact-server` for easy deployment.
-- [ ] **Visual Dashboard**: A web interface to browse and manage stored artifacts.
+- [ ] **TypeScript / Node.js SDK**
+- [ ] **Python SDK** (LangChain, AutoGen)
+- [ ] **Docker Image** — pre-configured server
+- [ ] **Web Dashboard** — browse & manage artifacts visually
 
 ---
 

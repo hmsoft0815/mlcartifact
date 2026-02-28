@@ -1,265 +1,176 @@
-# mlcartifact
+# mlcartifact — Der gemeinsame Speicher für MCP-Ökosysteme
 
-![mlcartifact Workflow und Logo](assets/mlcartifact2.png)
+> **Große Daten gehören nicht in den LLM-Kontext.** Lass MCP-Server Dateien direkt in einen gemeinsamen Speicher schreiben und nur eine ID austauschen. Das LLM orchestriert — ohne die Rohdaten je zu sehen.
+
+![mlcartifact Architektur](docs/how_it_works.png)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/hmsoft0815/mlcartifact.svg)](https://pkg.go.dev/github.com/hmsoft0815/mlcartifact)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-yellow.svg)](LICENSE)
 
-Eine Go-Bibliothek zur Kommunikation mit dem **Artifact-Storage-Dienst** über gRPC.
-Enthält den Server (`artifact-server`) sowie einen Kommandozeilen-Client (`artifact-cli`).
-
-Copyright (c) 2026 Michael Lechner. Alle Rechte vorbehalten.
-Lizenziert unter der MIT-Lizenz.
+Copyright (c) 2026 Michael Lechner. Lizenziert unter der MIT-Lizenz.
 
 > 🇬🇧 [English Version](README.md)
 
-## Warum Model Context Protocol (MCP)?
+---
 
-KI-Agenten müssen oft Dateien (Daten, Berichte, Code) generieren oder bestehenden Kontext lesen, um Aufgaben zu erfüllen. Das **Model Context Protocol** bietet eine standardisierte Schnittstelle für die Interaktion zwischen Agenten und Tools.
+## Das Problem: Große Daten gehören nicht in den LLM-Kontext
 
-`mlcartifact` löst das Problem des "flüchtigen Kontexts":
-- **Persistenz**: Agenten können Statusinformationen oder generierte Dateien speichern, die über Sitzungen hinweg erhalten bleiben.
-- **Kollaboration**: Mehrere Agenten (oder verschiedene MCP-Server wie `wollmilchsau`) können Daten über ein zentrales Hub austauschen.
-- **Portabilität**: Dateien werden standardisiert gespeichert und sind via gRPC, HTTP/SSE oder Standard-I/O zugänglich.
+Stell dir vor: Ein SQL-MCP-Server liefert 50.000 Zeilen zurück. Oder ein Report-Generator erzeugt ein 2MB-PDF. Fließen diese Ergebnisse durch das Kontext-Fenster des LLMs:
+
+- **Werden Tokens verschwendet** — massiv
+- **Wird das Kontextlimit gesprengt** — häufig
+- **Wird alles langsamer** — unnötig
+
+**mlcartifact** ist die Lösung: ein gemeinsamer Artefakt-Speicher. MCP-Server schreiben Ergebnisse direkt hinein und teilen dem LLM nur mit: *„Fertig. Artefakt-ID: `abc123`. Spalten: name, summe, datum."*
 
 ---
 
-## Überblick
-
-`mlcartifact` stellt einen sauberen Go-Client bereit, um Artefakte (Dateien, Berichte, Code)
-in einem gemeinsamen Speicherdienst zu lesen, zu schreiben, aufzulisten und zu löschen.
-Konzipiert für KI-Agenten und MCP-Server, die Dateien über Tool-Grenzen hinweg austauschen müssen.
+## Das Muster: MCP-Server tauschen Daten direkt aus
 
 ```
-┌──────────────────────────────────────────────┐
-│         Deine App / Dein MCP-Server          │
-│                                              │
-│   import "github.com/hmsoft0815/mlcartifact" │
-│   client, _ := mlcartifact.NewClient()       │
-│   client.Write(ctx, "bericht.md", daten)     │
-└────────────────────┬─────────────────────────┘
-                     │ gRPC (:9590)
-           ┌─────────▼──────────┐
-           │   artifact-server  │
-           │  (MCP + gRPC API)  │
-           └────────────────────┘
+LLM: "Führe den SQL-Quartalsbericht aus und erzeuge daraus ein PDF."
+
+  MCP-Server A (SQL)      mlcartifact         MCP-Server B (PDF)
+       │                       │                       │
+       │── write_artifact() ──▶│                       │
+       │   bericht.csv (2MB)   │                       │
+       │◀── artifact ID: abc123│                       │
+       │                       │                       │
+       └── sagt LLM: "Fertig." │                       │
+                               │                       │
+LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
+                               │                       │
+                               │◀── read_artifact(id) ─│
+                               │    (liest 2MB CSV)    │
+                               │──────────────────────▶│
 ```
+
+**Die großen Daten fließen nie durch das LLM.** Nur Artefakt-IDs werden ausgetauscht. Das LLM orchestriert — es trägt keine Daten.
 
 ---
 
-## Komponenten
+## Was ist in diesem Repository?
 
-| Pfad | Beschreibung |
-|------|--------------|
-| `.` | Go-Bibliothek — `import "github.com/hmsoft0815/mlcartifact"` |
-| `cmd/server` | Eigenständiger Artifact-Storage-Server (gRPC + MCP stdio/SSE) |
-| `cmd/cli` | Kommandozeilen-Client für den Server |
-
----
-
-## Installation
-
-### Bibliothek
-
-```bash
-go get github.com/hmsoft0815/mlcartifact
-```
-
-### Installation via Script (Linux/macOS)
-
-Der schnellste Weg, um sowohl Server als auch CLI zu installieren:
-
-```bash
-curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
-```
-
-### Server & CLI (Vorkompilierte Binaries)
-
-**Der einfachste Weg:** Lade die aktuellen Binaries für Windows, Linux oder macOS direkt von der **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)** Seite herunter.
-
-### Installation via Go
-Wenn Go installiert ist:
-```bash
-# Server
-go install github.com/hmsoft0815/mlcartifact/cmd/server@latest
-
-# CLI
-go install github.com/hmsoft0815/mlcartifact/cmd/cli@latest
-```
+| Komponente | Beschreibung |
+|---|---|
+| **`artifact-server`** | MCP + gRPC Server. Speichert und liefert Artefakte. Unterstützt stdio und SSE. |
+| **`artifact-cli`** | Kommandozeilen-Tool zum Hochladen, Herunterladen, Auflisten und Löschen. |
+| **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` — direkt in jeden MCP-Server einbettbar. |
 
 ---
 
 ## Schnellstart
 
+### Installation
+
+```bash
+# via Installations-Script (Linux/macOS)
+curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
+
+# oder via Go
+go install github.com/hmsoft0815/mlcartifact/cmd/server@latest
+go install github.com/hmsoft0815/mlcartifact/cmd/cli@latest
+```
+
+Vorkompilierte `.deb`, `.rpm` und Binaries unter **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)**.
+
 ### Server starten
 
 ```bash
-# Über stdio (Standard, für MCP-Integration)
-artifact-server
+# stdio-Modus (für Claude Desktop / MCP)
+artifact-server -data-dir /var/artifacts
 
-# Über SSE (für Netzwerkzugriff)
+# SSE/HTTP-Modus (für entfernte MCP-Server)
 artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
 ```
 
-### Bibliothek verwenden
+### Go-Bibliothek in deinem MCP-Server nutzen
 
 ```go
-package main
+import "github.com/hmsoft0815/mlcartifact"
 
-import (
-    "context"
-    "fmt"
+// Verbinden (liest ARTIFACT_GRPC_ADDR, Standard: :9590)
+client, _ := mlcartifact.NewClient()
+defer client.Close()
 
-    "github.com/hmsoft0815/mlcartifact"
+// Großes Ergebnis speichern — liefert eine ID, keine Daten
+resp, _ := client.Write(ctx, "bericht.csv", csvDaten,
+    mlcartifact.WithMimeType("text/csv"),
+    mlcartifact.WithExpiresHours(24),
 )
 
-func main() {
-    // Verbindet sich mit ARTIFACT_GRPC_ADDR (Standard: :9590)
-    client, err := mlcartifact.NewClient()
-    if err != nil {
-        panic(err)
-    }
-    defer client.Close()
-
-    ctx := context.Background()
-
-    // Artefakt schreiben
-    resp, err := client.Write(ctx, "bericht.md", []byte("# Hallo Welt"),
-        mlcartifact.WithMimeType("text/markdown"),
-        mlcartifact.WithExpiresHours(48),
-    )
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Artefakt-ID:", resp.Id)
-
-    // Artefakt lesen
-    data, err := client.Read(ctx, resp.Id)
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Inhalt:", string(data.Content))
-}
-```
-
----
-
-## CLI Nutzung
-
-Das `artifact-cli` Tool ermöglicht die direkte Interaktion mit dem Speicher-Dienst über das Terminal.
-
-### Verbindung
-Der Client verbindet sich mit der gRPC-Schnittstelle des Servers. Die Adresse kann per Umgebungsvariable oder Flag gesetzt werden.
-
-```bash
-# Standard: localhost:9590
-export ARTIFACT_GRPC_ADDR=localhost:9590
-
-# Oder per Flag
-artifact-cli -addr localhost:50051 <befehl>
-```
-
-### Beispiele
-
-**Artefakte auflisten:**
-```bash
-# Alle Artefakte anzeigen (Global + eigene User-ID falls gesetzt)
-artifact-cli list
-
-# Mit Paginierung und Benutzer-Filter
-artifact-cli list --limit 10 --offset 0 --user meine-id
-```
-
-**Datei hochladen:**
-```bash
-# Einfacher Upload
-artifact-cli create ./daten.json
-
-# Detaillierter Upload mit Metadaten
-# Hinweis: 'expires' wird in Stunden angegeben (Standard: 24)
-artifact-cli create ./bericht.pdf --name "Monatsbericht" --description "Analyse Q1" --user "analyst-1" --expires 72
-```
-
-**Artefakt herunterladen:**
-```bash
-# Per ID oder Dateiname an einen lokalen Zielpfad laden
-artifact-cli download xyz123 ./mein-bericht.pdf
-```
-
-**Artefakt löschen:**
-```bash
-artifact-cli delete xyz123 --user "analyst-1"
+// Dem LLM mitteilen: "Fertig. ID: abc123. Spalten: name, summe, datum."
+fmt.Println("artifact_id:", resp.Id)
 ```
 
 ---
 
 ## Claude Desktop Integration
 
-Um `mlcartifact` als Tool in Claude Desktop zu nutzen, füge den Server zu deiner Konfigurationsdatei hinzu:
-
-- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-### Standard-Konfiguration (via Stdio)
-Dies ist der einfachste Weg. Claude startet den Server automatisch bei Bedarf.
-
 ```json
 {
   "mcpServers": {
     "mlcartifact": {
-      "command": "/absoluter/pfad/zu/artifact-server",
-      "args": ["-data-dir", "/dein/absoluter/pfad/zu/artifacts"]
+      "command": "/pfad/zu/artifact-server",
+      "args": ["-data-dir", "/dein/artifacts-pfad"]
     }
   }
 }
 ```
 
-### Netzwerk-Konfiguration (via SSE)
-Falls der Server bereits in deinem Netzwerk läuft:
-
+Oder Verbindung zu einem laufenden Server via SSE:
 ```json
 {
   "mcpServers": {
     "mlcartifact": {
-      "sse": {
-        "url": "http://localhost:8082/sse"
-      }
+      "sse": { "url": "http://localhost:8082/sse" }
     }
   }
 }
 ```
-
----
-
-## Konfiguration (Server)
-
-| Flag | Standard | Beschreibung |
-|------|----------|--------------|
-| `-addr` | _(leer)_ | SSE-Adresse. Wenn leer, wird stdio verwendet. |
-| `-grpc-addr` | `:9590` | gRPC-Adresse |
-| `-data-dir` | `.artifacts` | Verzeichnis für Artifact-Speicherung |
-| `-mcp-list-limit` | `100` | Max. Einträge bei `list_artifacts` |
-
-### Umgebungsvariablen (Bibliothek)
-
-| Variable | Beschreibung |
-|----------|--------------|
-| `ARTIFACT_GRPC_ADDR` | gRPC-Adresse (Standard: `:9590`) |
-| `ARTIFACT_SOURCE` | Standard-Quelle für geschriebene Artefakte |
-| `ARTIFACT_USER_ID` | Standard-Benutzer-ID für Artifact-Operationen |
 
 ---
 
 ## MCP-Tools
 
-Als MCP-Server stellt `artifact-server` folgende Tools bereit:
-
 | Tool | Beschreibung |
-|------|--------------|
-| `write_artifact` | Datei im Artifact-Store speichern |
+|---|---|
+| `write_artifact` | Datei speichern — liefert eine ID |
 | `read_artifact` | Datei per ID oder Dateiname abrufen |
-| `list_artifacts` | Alle Artefakte eines Benutzers auflisten |
-| `delete_artifact` | Artefakt dauerhaft löschen |
+| `list_artifacts` | Gespeicherte Artefakte auflisten |
+| `delete_artifact` | Dauerhaft löschen |
+
+---
+
+## CLI Nutzung
+
+```bash
+artifact-cli create ./bericht.csv --name "Q1-Bericht" --expires 72
+artifact-cli download abc123 ./lokale-kopie.csv
+artifact-cli list
+artifact-cli delete abc123
+```
+
+Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Flag.
+
+---
+
+## Server-Konfiguration
+
+| Flag | Standard | Beschreibung |
+|---|---|---|
+| `-addr` | _(leer)_ | SSE-Adresse. Leer = stdio-Modus. |
+| `-grpc-addr` | `:9590` | gRPC-Adresse für Bibliotheks-Verbindungen |
+| `-data-dir` | `.artifacts` | Speicherverzeichnis |
+| `-mcp-list-limit` | `100` | Max. Einträge bei `list_artifacts` |
+
+**Umgebungsvariablen (Bibliothek):**
+
+| Variable | Beschreibung |
+|---|---|
+| `ARTIFACT_GRPC_ADDR` | gRPC-Adresse (Standard: `:9590`) |
+| `ARTIFACT_SOURCE` | Standard-Quell-Tag |
+| `ARTIFACT_USER_ID` | Standard-Benutzer-ID |
 
 ---
 
@@ -267,9 +178,9 @@ Als MCP-Server stellt `artifact-server` folgende Tools bereit:
 
 ```
 .artifacts/
-├── global/              # Artefakte ohne Benutzer-ID
+├── global/
 │   ├── {id}_{dateiname}
-│   └── {id}_{dateiname}.json  # Metadaten-Sidecar
+│   └── {id}_{dateiname}.json   # Metadaten-Sidecar
 └── users/
     └── {user_id}/
         ├── {id}_{dateiname}
@@ -281,26 +192,19 @@ Als MCP-Server stellt `artifact-server` folgende Tools bereit:
 ## Entwicklung
 
 ```bash
-# Alle Tests ausführen
-task test
-
-# Alle Binaries bauen
-task build
-
-# Nur den Server bauen
-task build-server
+task test           # alle Tests ausführen
+task build          # alle Binaries bauen
+task build-server   # nur den Server bauen
 ```
-
-Alle verfügbaren Befehle sind in der [Taskfile](Taskfile.yml) dokumentiert.
 
 ---
 
 ## Roadmap
 
-- [ ] **TypeScript / Node.js SDK**: Für Node-basierte MCP-Server und Web-Integrationen.
-- [ ] **Python SDK**: Zur nahtlosen Integration in das KI/ML-Ecosystem (LangChain, AutoGen).
-- [ ] **Docker Image**: Vorkonfigurierter `artifact-server` für einfaches Deployment.
-- [ ] **Visual Dashboard**: Ein Web-Interface zum Durchsuchen und Verwalten gespeicherter Artefakte.
+- [ ] **TypeScript / Node.js SDK**
+- [ ] **Python SDK** (LangChain, AutoGen)
+- [ ] **Docker Image** — vorkonfigurierter Server
+- [ ] **Web Dashboard** — Artefakte im Browser verwalten
 
 ---
 

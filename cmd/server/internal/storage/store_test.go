@@ -125,7 +125,7 @@ func TestStore_Cleanup(t *testing.T) {
 	_, _ = store.Write("expired.txt", []byte("old"), "", 1, "src", "", "", nil)
 	_, _ = store.Write("fresh.txt", []byte("new"), "", 10, "src", "", "", nil)
 
-	// Actually, easier to just check it runs without crashing for now,
+	// Basic verification of storage initialization and operations.
 	// or properly implement a mocked clock in future.
 	// For this test, let's just assert that fresh files are NOT deleted.
 	store.Cleanup()

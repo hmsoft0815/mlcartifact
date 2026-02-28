@@ -70,13 +70,7 @@ func handleList(cli *mlcartifact.Client, args []string) {
 	user := fs.String("user", "", "Filter by user ID")
 	fs.Parse(args)
 
-	// Since mlcartifact.Client doesn't directly expose limit/offset yet,
-	// we will need to update it or use the proto client directly.
-	// For now, let's assume we update the client.
-
-	// Actually, I'll update mlcartifact.Client.List signature to support pagination or add options.
-	// But to keep it simple and compileable now, let's just use raw List and implement pagination in client if needed.
-	// WAit, if I updated the proto, I should update the client too.
+	// Request list with optional pagination and user filtering.
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

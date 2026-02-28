@@ -1,0 +1,16 @@
+# Build artifacts & binaries
+bin/
+build/
+*.exe
+*.test
+*.out
+cmd/*/artifact-*
+cmd/server/artifact-server
+
+# Go workspace (lokal, nicht im Repo)
+go.work
+go.work.sum
+
+# Logs & tmp
+*.log
+.artifacts/

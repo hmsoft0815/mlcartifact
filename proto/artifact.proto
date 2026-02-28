@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package artifact.v1;
+
+option go_package = "github.com/mlcmcp/mlcartifact/proto";
+
+service ArtifactService {
+  rpc Write(WriteRequest)  returns (WriteResponse);
+  rpc Read(ReadRequest)    returns (ReadResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc List(ListRequest)    returns (ListResponse);
+}
+
+message WriteRequest {
+  string filename      = 1;  // e.g. "diagram.svg"
+  bytes  content       = 2;  // raw binary data (no base64!)
+  string mime_type     = 3;  // optional, auto-detected from filename
+  int32  expires_hours = 4;  // optional, default 24
+  string source        = 5;  // server name for auditing, e.g. "d2mcp"
+  map<string, string> metadata = 6;
+  string user_id       = 7;  // optional UUID, for multi-user isolation
+  string description   = 8;  // optional description
+}
+
+message WriteResponse {
+  string id         = 1;  // unique artifact ID
+  string filename   = 2;  // sanitized filename
+  string uri        = 3;  // artifact://filename for LLM reference
+  string expires_at = 4;  // ISO 8601
+}
+
+message ReadRequest {
+  string id      = 1;  // artifact ID or filename
+  string user_id = 2;  // optional, scopes lookup to user
+}
+
+message ReadResponse {
+  bytes  content   = 1;
+  string mime_type = 2;
+  string filename  = 3;
+}
+
+message DeleteRequest {
+  string id      = 1;
+  string user_id = 2;  // optional, scopes delete to user
+}
+
+message DeleteResponse {
+  bool deleted = 1;
+}
+
+message ListRequest {
+  string source  = 1;  // optional filter by source server
+  string user_id = 2;  // optional, scopes listing to user
+  int32  limit   = 3;  // optional limit
+  int32  offset  = 4;  // optional offset
+}
+
+message ListResponse {
+  repeated ArtifactInfo items = 1;
+}
+
+message ArtifactInfo {
+  string id         = 1;
+  string filename   = 2;
+  string mime_type  = 3;
+  string source     = 4;
+  string created_at = 5;
+  string expires_at = 6;
+  int64  size_bytes = 7;
+  string user_id    = 8;
+  string description = 9;
+}

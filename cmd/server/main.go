@@ -6,18 +6,19 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/grpc"
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/handlers"
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
-	pb "github.com/hmsoft0815/mlcartifact/proto"
+	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
+	"github.com/rs/cors"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	googlegrpc "google.golang.org/grpc"
 )
 
 const (
@@ -114,20 +115,25 @@ func main() {
 		}
 	}
 
-	// Start gRPC server in background
+	// Start Connect/gRPC server in background
 	go func() {
-		lis, err := net.Listen("tcp", *grpcAddr)
-		if err != nil {
-			slog.Error("gRPC net.Listen failed", "err", err)
-			return
-		}
+		mux := http.NewServeMux()
+		path, handler := protoconnect.NewArtifactServiceHandler(grpc.NewConnectServer(store))
+		mux.Handle(path, handler)
 
-		grpcServer := googlegrpc.NewServer()
-		pb.RegisterArtifactServiceServer(grpcServer, grpc.NewServer(store))
+		slog.Info("Connect/gRPC server started", "addr", *grpcAddr)
+		
+		// Setup CORS for browser access
+		c := cors.New(cors.Options{
+			AllowedOrigins: []string{"*"}, // Adjust in production
+			AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+			AllowedHeaders: []string{"Connect-Protocol-Version", "Content-Type", "Accept", "Connect-Timeout-Ms", "X-User-Id"},
+			ExposedHeaders: []string{"Content-Length"},
+		})
 
-		slog.Info("gRPC server started", "addr", *grpcAddr)
-		if err := grpcServer.Serve(lis); err != nil {
-			slog.Error("gRPC server failed", "err", err)
+		// We use h2c to support gRPC/HTTP2 without TLS
+		if err := http.ListenAndServe(*grpcAddr, c.Handler(h2c.NewHandler(mux, &http2.Server{}))); err != nil {
+			slog.Error("Connect/gRPC server failed", "err", err)
 		}
 	}()
 

@@ -60,7 +60,7 @@ console.log(`Diagramm gespeichert! Zugriff über URI: ${res.uri}`);
 Der Server ist in **Go** geschrieben und nutzt `log/slog` für professionelles Monitoring. Er unterstützt mehrere Protokolle:
 - **stdio:** Standard-MCP-Modus.
 - **SSE (HTTP):** Für Remote- oder Web-Integration.
-- **gRPC:** Binärer Hochleistungs-Transport für interne Clients.
+- **gRPC:** Binärer Hochleistungs-Transport für interne Clients. Siehe **[gRPC-Messaging & Go-Bibliothek](../../docs/grpc_messaging.md)**.
 
 ---
 

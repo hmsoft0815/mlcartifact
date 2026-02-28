@@ -56,6 +56,13 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 | **`artifact-server`** | MCP + gRPC Server. Speichert und liefert Artefakte. Unterstützt stdio und SSE. |
 | **`artifact-cli`** | Kommandozeilen-Tool zum Hochladen, Herunterladen, Auflisten und Löschen. |
 | **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` — direkt in jeden MCP-Server einbettbar. |
+| **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` — Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
+
+---
+
+## Dokumentation
+
+- **[gRPC-Messaging & Go-Bibliothek](docs/grpc_messaging.md)** — Detaillierte technische Anleitung zur Nutzung der Go-Bibliothek und gRPC-API.
 
 ---
 
@@ -85,6 +92,8 @@ artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
 ```
 
 ### Go-Bibliothek in deinem MCP-Server nutzen
+
+Siehe die **[Go-Client-Dokumentation](docs/grpc_messaging.md)** für detaillierte Beispiele.
 
 ```go
 import "github.com/hmsoft0815/mlcartifact"

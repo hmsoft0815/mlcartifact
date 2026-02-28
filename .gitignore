@@ -14,3 +14,8 @@ go.work.sum
 # Logs & tmp
 *.log
 .artifacts/
+
+# TypeScript client
+client-ts/node_modules/
+client-ts/dist/
+client-ts/src/gen/

@@ -56,6 +56,13 @@ LLM: "PDF Server: generate a PDF from artifact abc123."
 | **`artifact-server`** | MCP + gRPC server. Stores and serves artifacts. Speaks stdio and SSE. |
 | **`artifact-cli`** | Command-line tool to upload, download, list, and delete artifacts. |
 | **Go library** | `import "github.com/hmsoft0815/mlcartifact"` — embed directly in any MCP server. |
+| **TypeScript client** | `npm install @hmsoft0815/mlcartifact-client` — Universal client (Node, Browser, Edge) using Connect RPC. |
+
+---
+
+## Documentation
+
+- **[gRPC Messaging & Go Client Library](docs/grpc_messaging.md)** — Detailed technical guide for using the Go library and gRPC API.
 
 ---
 
@@ -85,6 +92,8 @@ artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
 ```
 
 ### Use the Go Library in Your MCP Server
+
+See the **[Go Client Documentation](docs/grpc_messaging.md)** for detailed usage and examples.
 
 ```go
 import "github.com/hmsoft0815/mlcartifact"
@@ -201,7 +210,7 @@ task build-server # server only
 
 ## Roadmap
 
-- [ ] **TypeScript / Node.js SDK**
+- [x] **TypeScript / Node.js SDK**
 - [ ] **Python SDK** (LangChain, AutoGen)
 - [ ] **Docker Image** — pre-configured server
 - [ ] **Web Dashboard** — browse & manage artifacts visually

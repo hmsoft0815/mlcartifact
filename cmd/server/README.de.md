@@ -43,6 +43,10 @@ make build
 make test-client
 ```
 
+## Dokumentation
+
+Detaillierte Informationen zur internen Kommunikation finden Sie unter **[gRPC-Messaging & Go-Bibliothek](../../docs/grpc_messaging.md)**.
+
 ## Claude Desktop Konfiguration
 
 ```json

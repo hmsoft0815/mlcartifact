@@ -60,7 +60,7 @@ console.log(`Diagram saved! Access URI: ${res.uri}`);
 The server is built in **Go** and utilizes `log/slog` for industrial-grade monitoring. It supports multiple transports:
 - **stdio:** Standard MCP mode.
 - **SSE (HTTP):** For remote or web-based integration.
-- **gRPC:** High-performance binary transport for internal clients.
+- **gRPC:** High-performance binary transport for internal clients. See **[gRPC Messaging & Go Client Library](../../docs/grpc_messaging.md)**.
 
 ---
 

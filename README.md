@@ -10,6 +10,15 @@ Includes the server (`artifact-server`) and a command-line client (`artifact-cli
 
 > 🇩🇪 [Deutsche Version](README.de.md)
 
+## Why Model Context Protocol (MCP)?
+
+AI agents often need to generate files (data, reports, code) or read existing context to perform tasks. The **Model Context Protocol** provides a standardized interface for agents to interact with tools.
+
+`mlcartifact` solves the "fleeting context" problem:
+- **Persistence**: Agents can save state or generated files that persist across sessions.
+- **Collaboration**: Multiple agents (or even different MCP servers like `wollmilchsau`) can share and exchange data via a central hub.
+- **Portability**: Files are stored in a standardized way and can be accessed via gRPC, HTTP/SSE, or standard I/O.
+
 ---
 
 ## Overview

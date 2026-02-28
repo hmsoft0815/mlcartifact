@@ -10,6 +10,15 @@ Enthält den Server (`artifact-server`) sowie einen Kommandozeilen-Client (`arti
 
 > 🇬🇧 [English Version](README.md)
 
+## Warum Model Context Protocol (MCP)?
+
+KI-Agenten müssen oft Dateien (Daten, Berichte, Code) generieren oder bestehenden Kontext lesen, um Aufgaben zu erfüllen. Das **Model Context Protocol** bietet eine standardisierte Schnittstelle für die Interaktion zwischen Agenten und Tools.
+
+`mlcartifact` löst das Problem des "flüchtigen Kontexts":
+- **Persistenz**: Agenten können Statusinformationen oder generierte Dateien speichern, die über Sitzungen hinweg erhalten bleiben.
+- **Kollaboration**: Mehrere Agenten (oder verschiedene MCP-Server wie `wollmilchsau`) können Daten über ein zentrales Hub austauschen.
+- **Portabilität**: Dateien werden standardisiert gespeichert und sind via gRPC, HTTP/SSE oder Standard-I/O zugänglich.
+
 ---
 
 ## Überblick

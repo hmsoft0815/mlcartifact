@@ -182,6 +182,15 @@ See the [Taskfile](Taskfile.yml) for all available commands.
 
 ---
 
+## Roadmap
+
+- [ ] **TypeScript / Node.js SDK**: For building Node-based MCP servers and web integrations.
+- [ ] **Python SDK**: For seamless integration into the AI/ML ecosystem (LangChain, AutoGen).
+- [ ] **Docker Image**: Pre-configured `artifact-server` for easy deployment.
+- [ ] **Visual Dashboard**: A web interface to browse and manage stored artifacts.
+
+---
+
 ## License
 
 MIT License — Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)

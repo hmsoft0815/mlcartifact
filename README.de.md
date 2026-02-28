@@ -182,6 +182,15 @@ Alle verfügbaren Befehle sind in der [Taskfile](Taskfile.yml) dokumentiert.
 
 ---
 
+## Roadmap
+
+- [ ] **TypeScript / Node.js SDK**: Für Node-basierte MCP-Server und Web-Integrationen.
+- [ ] **Python SDK**: Zur nahtlosen Integration in das KI/ML-Ecosystem (LangChain, AutoGen).
+- [ ] **Docker Image**: Vorkonfigurierter `artifact-server` für einfaches Deployment.
+- [ ] **Visual Dashboard**: Ein Web-Interface zum Durchsuchen und Verwalten gespeicherter Artefakte.
+
+---
+
 ## Lizenz
 
 MIT-Lizenz — Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)

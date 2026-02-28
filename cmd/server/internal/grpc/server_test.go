@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mlcmcp/artifact-server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

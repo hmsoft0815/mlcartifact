@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/mlcmcp/artifact-server/internal/grpc"
-	"github.com/mlcmcp/artifact-server/internal/handlers"
-	"github.com/mlcmcp/artifact-server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/grpc"
+	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/handlers"
+	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 
 	"github.com/mark3labs/mcp-go/mcp"

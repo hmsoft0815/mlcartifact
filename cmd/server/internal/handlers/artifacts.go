@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mlcmcp/artifact-server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
 )
 
 // WriteArtifactArgs defines the input for saving an artifact.

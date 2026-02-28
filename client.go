@@ -1,4 +1,29 @@
 // Copyright (c) 2026 Michael Lechner. All rights reserved.
+// Use of this source code is governed by the MIT license that can be
+// found in the LICENSE file.
+
+// Package mlcartifact provides a gRPC client for the artifact storage service.
+//
+// The artifact service allows AI agents and tools to persist files (reports,
+// code, data) across tool invocations via a shared storage backend. Artifacts
+// are identified by a unique ID and can be scoped to a specific user.
+//
+// # Basic Usage
+//
+//	client, err := mlcartifact.NewClient()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer client.Close()
+//
+//	resp, err := client.Write(ctx, "report.md", []byte("# Hello"),
+//	    mlcartifact.WithMimeType("text/markdown"),
+//	)
+//
+// # Configuration
+//
+// The gRPC target address is read from the ARTIFACT_GRPC_ADDR environment
+// variable. If not set, it defaults to ":9590".
 package mlcartifact
 
 import (
@@ -55,6 +80,8 @@ func NewClientWithService(service pb.ArtifactServiceClient) *Client {
 	}
 }
 
+// Close releases the underlying gRPC connection. Must be called when the
+// client is no longer needed to avoid resource leaks.
 func (c *Client) Close() error {
 	return c.conn.Close()
 }
@@ -117,77 +144,93 @@ func (c *Client) Delete(ctx context.Context, idOrFilename string, opts ...Delete
 	return c.cli.Delete(ctx, req)
 }
 
+// WriteOption configures a WriteRequest before it is sent to the server.
 type WriteOption func(*pb.WriteRequest)
 
+// WithMimeType sets the MIME type for the artifact. If not provided, the
+// server will attempt to detect it from the filename extension.
 func WithMimeType(mt string) WriteOption {
 	return func(r *pb.WriteRequest) {
 		r.MimeType = mt
 	}
 }
 
+// WithExpiresHours sets the number of hours until the artifact is
+// automatically deleted by the server's cleanup routine.
 func WithExpiresHours(h int32) WriteOption {
 	return func(r *pb.WriteRequest) {
 		r.ExpiresHours = h
 	}
 }
 
+// WithSource tags the artifact with a source identifier (e.g. the tool or
+// agent that created it). Overrides the ARTIFACT_SOURCE environment variable.
 func WithSource(s string) WriteOption {
 	return func(r *pb.WriteRequest) {
 		r.Source = s
 	}
 }
 
+// WithUserID scopes the artifact to a specific user. Overrides the
+// ARTIFACT_USER_ID environment variable.
 func WithUserID(id string) WriteOption {
 	return func(r *pb.WriteRequest) {
 		r.UserId = id
 	}
 }
 
+// WithMetadata attaches arbitrary key-value metadata to the artifact.
 func WithMetadata(m map[string]string) WriteOption {
 	return func(r *pb.WriteRequest) {
 		r.Metadata = m
 	}
 }
 
+// WithDescription adds a human-readable description to the artifact.
 func WithDescription(d string) WriteOption {
 	return func(r *pb.WriteRequest) {
 		r.Description = d
 	}
 }
 
-// Read options
+// ReadOption configures a ReadRequest before it is sent to the server.
 type ReadOption func(*pb.ReadRequest)
 
+// WithReadUserID scopes the read operation to a specific user's storage.
 func WithReadUserID(id string) ReadOption {
 	return func(r *pb.ReadRequest) {
 		r.UserId = id
 	}
 }
 
-// List options
+// ListOption configures a ListRequest before it is sent to the server.
 type ListOption func(*pb.ListRequest)
 
+// WithLimit sets the maximum number of artifacts to return.
 func WithLimit(limit int32) ListOption {
 	return func(r *pb.ListRequest) {
 		r.Limit = limit
 	}
 }
 
+// WithOffset skips the first n artifacts in the result (for pagination).
 func WithOffset(offset int32) ListOption {
 	return func(r *pb.ListRequest) {
 		r.Offset = offset
 	}
 }
 
+// WithListUserID scopes the list operation to a specific user's storage.
 func WithListUserID(id string) ListOption {
 	return func(r *pb.ListRequest) {
 		r.UserId = id
 	}
 }
 
-// Delete options
+// DeleteOption configures a DeleteRequest before it is sent to the server.
 type DeleteOption func(*pb.DeleteRequest)
 
+// WithDeleteUserID scopes the delete operation to a specific user's storage.
 func WithDeleteUserID(id string) DeleteOption {
 	return func(r *pb.DeleteRequest) {
 		r.UserId = id

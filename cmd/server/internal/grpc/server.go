@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/mlcmcp/artifact-server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 )
 

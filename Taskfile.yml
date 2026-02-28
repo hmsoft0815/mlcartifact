@@ -1,0 +1,93 @@
+version: '3'
+
+vars:
+  MODULE: github.com/hmsoft0815/mlcartifact
+  SERVER_BIN: ./bin/artifact-server
+  CLI_BIN: ./bin/artifact-cli
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  build:
+    desc: Build all binaries (server + cli)
+    cmds:
+      - task: build-server
+      - task: build-cli
+
+  build-server:
+    desc: Build the artifact-server binary
+    cmds:
+      - mkdir -p ./bin
+      - go build -o {{.SERVER_BIN}} ./cmd/server
+    sources:
+      - cmd/server/**/*.go
+      - "*.go"
+      - proto/**/*.go
+    generates:
+      - "{{.SERVER_BIN}}"
+
+  build-cli:
+    desc: Build the artifact-cli binary
+    cmds:
+      - mkdir -p ./bin
+      - go build -o {{.CLI_BIN}} ./cmd/cli/cmd/artifact-cli
+    sources:
+      - cmd/cli/**/*.go
+    generates:
+      - "{{.CLI_BIN}}"
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
+  test-verbose:
+    desc: Run all tests with verbose output
+    cmds:
+      - go test -v ./...
+
+  test-cover:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report written to coverage.html"
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  tidy:
+    desc: Tidy all go.mod files
+    cmds:
+      - go mod tidy
+      - cd cmd/server && go mod tidy
+      - cd cmd/cli && go mod tidy
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf ./bin coverage.out coverage.html
+
+  run-server:
+    desc: Run artifact-server in stdio mode (for development)
+    cmds:
+      - go run ./cmd/server
+
+  run-server-sse:
+    desc: Run artifact-server in SSE mode on :8082
+    cmds:
+      - go run ./cmd/server -addr :8082 -grpc-addr :9590
+
+  proto:
+    desc: Regenerate protobuf files (requires protoc + protoc-gen-go)
+    dir: proto
+    cmds:
+      - protoc --go_out=. --go_opt=paths=source_relative
+          --go-grpc_out=. --go-grpc_opt=paths=source_relative
+          artifact.proto

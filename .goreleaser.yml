@@ -65,10 +65,10 @@ nfpms:
       - artifact-server
       - artifact-cli
     contents:
-      - src: artifact-server
-        dst: /usr/bin/artifact-server
-      - src: artifact-cli
-        dst: /usr/bin/artifact-cli
+      - src: LICENSE
+        dst: /usr/share/doc/mlcartifact/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/mlcartifact/README.md
 
 snapshot:
   name_template: "{{ incpatch .Version }}-next"

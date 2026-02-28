@@ -1,5 +1,7 @@
 # mlcartifact
 
+![mlcartifact Workflow and Logo](assets/mlcartifact2.png)
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/hmsoft0815/mlcartifact.svg)](https://pkg.go.dev/github.com/hmsoft0815/mlcartifact)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 

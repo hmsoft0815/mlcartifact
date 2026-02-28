@@ -39,7 +39,6 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
@@ -62,6 +61,9 @@ nfpms:
     formats:
       - deb
       - rpm
+    builds:
+      - artifact-server
+      - artifact-cli
     contents:
       - src: artifact-server
         dst: /usr/bin/artifact-server

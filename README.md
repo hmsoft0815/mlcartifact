@@ -62,8 +62,12 @@ that need to exchange files (reports, code, data) across tool boundaries.
 go get github.com/hmsoft0815/mlcartifact
 ```
 
-### Server & CLI binaries
+### Server & CLI (Pre-built Binaries)
 
+**The easiest way:** Download the latest binaries for Windows, Linux, or macOS from the **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)** page.
+
+### Installation via Go
+If you have Go installed:
 ```bash
 # Server
 go install github.com/hmsoft0815/mlcartifact/cmd/server@latest

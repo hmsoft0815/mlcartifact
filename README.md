@@ -65,6 +65,14 @@ that need to exchange files (reports, code, data) across tool boundaries.
 go get github.com/hmsoft0815/mlcartifact
 ```
 
+### Installation via Script (Linux/macOS)
+
+The fastest way to install both server and CLI:
+
+```bash
+curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
+```
+
 ### Server & CLI (Pre-built Binaries)
 
 **The easiest way:** Download the latest binaries for Windows, Linux, or macOS from the **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)** page.

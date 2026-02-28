@@ -65,6 +65,14 @@ Konzipiert für KI-Agenten und MCP-Server, die Dateien über Tool-Grenzen hinweg
 go get github.com/hmsoft0815/mlcartifact
 ```
 
+### Installation via Script (Linux/macOS)
+
+Der schnellste Weg, um sowohl Server als auch CLI zu installieren:
+
+```bash
+curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
+```
+
 ### Server & CLI (Vorkompilierte Binaries)
 
 **Der einfachste Weg:** Lade die aktuellen Binaries für Windows, Linux oder macOS direkt von der **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)** Seite herunter.

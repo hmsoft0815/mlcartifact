@@ -185,6 +185,44 @@ artifact-cli delete xyz123 --user "analyst-1"
 
 ---
 
+## Claude Desktop Integration
+
+Um `mlcartifact` als Tool in Claude Desktop zu nutzen, füge den Server zu deiner Konfigurationsdatei hinzu:
+
+- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Standard-Konfiguration (via Stdio)
+Dies ist der einfachste Weg. Claude startet den Server automatisch bei Bedarf.
+
+```json
+{
+  "mcpServers": {
+    "mlcartifact": {
+      "command": "/absoluter/pfad/zu/artifact-server",
+      "args": ["-data-dir", "/dein/absoluter/pfad/zu/artifacts"]
+    }
+  }
+}
+```
+
+### Netzwerk-Konfiguration (via SSE)
+Falls der Server bereits in deinem Netzwerk läuft:
+
+```json
+{
+  "mcpServers": {
+    "mlcartifact": {
+      "sse": {
+        "url": "http://localhost:8082/sse"
+      }
+    }
+  }
+}
+```
+
+---
+
 ## Konfiguration (Server)
 
 | Flag | Standard | Beschreibung |

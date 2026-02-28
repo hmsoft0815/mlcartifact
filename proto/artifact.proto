@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package artifact.v1;
 
-option go_package = "github.com/mlcmcp/mlcartifact/proto";
+option go_package = "github.com/hmsoft0815/mlcartifact/proto";
 
 service ArtifactService {
   rpc Write(WriteRequest)  returns (WriteResponse);

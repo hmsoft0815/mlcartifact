@@ -7,12 +7,11 @@
 package proto
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -31,7 +30,7 @@ type WriteRequest struct {
 	Source        string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"`                                  // server name for auditing, e.g. "d2mcp"
 	Metadata      map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	UserId        string                 `protobuf:"bytes,7,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // optional UUID, for multi-user isolation
-	Description   string                 `protobuf:"bytes,8,opt,name=description,proto3" json:"description,omitempty"`
+	Description   string                 `protobuf:"bytes,8,opt,name=description,proto3" json:"description,omitempty"`     // optional description
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -402,8 +401,8 @@ type ListRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`               // optional filter by source server
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // optional, scopes listing to user
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                // optional limit
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`              // optional offset
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -622,7 +621,7 @@ var File_proto_artifact_proto protoreflect.FileDescriptor
 
 const file_proto_artifact_proto_rawDesc = "" +
 	"\n" +
-	"\x14proto/artifact.proto\x12\vartifact.v1\"\xb9\x02\n" +
+	"\x14proto/artifact.proto\x12\vartifact.v1\"\xdb\x02\n" +
 	"\fWriteRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\fR\acontent\x12\x1b\n" +
@@ -630,7 +629,8 @@ const file_proto_artifact_proto_rawDesc = "" +
 	"\rexpires_hours\x18\x04 \x01(\x05R\fexpiresHours\x12\x16\n" +
 	"\x06source\x18\x05 \x01(\tR\x06source\x12C\n" +
 	"\bmetadata\x18\x06 \x03(\v2'.artifact.v1.WriteRequest.MetadataEntryR\bmetadata\x12\x17\n" +
-	"\auser_id\x18\a \x01(\tR\x06userId\x1a;\n" +
+	"\auser_id\x18\a \x01(\tR\x06userId\x12 \n" +
+	"\vdescription\x18\b \x01(\tR\vdescription\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"l\n" +
@@ -651,12 +651,14 @@ const file_proto_artifact_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"*\n" +
 	"\x0eDeleteResponse\x12\x18\n" +
-	"\adeleted\x18\x01 \x01(\bR\adeleted\">\n" +
+	"\adeleted\x18\x01 \x01(\bR\adeleted\"l\n" +
 	"\vListRequest\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"?\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\"?\n" +
 	"\fListResponse\x12/\n" +
-	"\x05items\x18\x01 \x03(\v2\x19.artifact.v1.ArtifactInfoR\x05items\"\xe5\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x19.artifact.v1.ArtifactInfoR\x05items\"\x87\x02\n" +
 	"\fArtifactInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1b\n" +
@@ -668,12 +670,13 @@ const file_proto_artifact_proto_rawDesc = "" +
 	"expires_at\x18\x06 \x01(\tR\texpiresAt\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\a \x01(\x03R\tsizeBytes\x12\x17\n" +
-	"\auser_id\x18\b \x01(\tR\x06userId2\x8e\x02\n" +
+	"\auser_id\x18\b \x01(\tR\x06userId\x12 \n" +
+	"\vdescription\x18\t \x01(\tR\vdescription2\x8e\x02\n" +
 	"\x0fArtifactService\x12>\n" +
 	"\x05Write\x12\x19.artifact.v1.WriteRequest\x1a\x1a.artifact.v1.WriteResponse\x12;\n" +
 	"\x04Read\x12\x18.artifact.v1.ReadRequest\x1a\x19.artifact.v1.ReadResponse\x12A\n" +
 	"\x06Delete\x12\x1a.artifact.v1.DeleteRequest\x1a\x1b.artifact.v1.DeleteResponse\x12;\n" +
-	"\x04List\x12\x18.artifact.v1.ListRequest\x1a\x19.artifact.v1.ListResponseB%Z#github.com/hmsoft0815/mlcartifact/protob\x06proto3"
+	"\x04List\x12\x18.artifact.v1.ListRequest\x1a\x19.artifact.v1.ListResponseB)Z'github.com/hmsoft0815/mlcartifact/protob\x06proto3"
 
 var (
 	file_proto_artifact_proto_rawDescOnce sync.Once

@@ -63,11 +63,9 @@ tasks:
       - golangci-lint run ./...
 
   tidy:
-    desc: Tidy all go.mod files
+    desc: Tidy go.mod
     cmds:
       - go mod tidy
-      - cd cmd/server && go mod tidy
-      - cd cmd/cli && go mod tidy
 
   clean:
     desc: Remove build artifacts

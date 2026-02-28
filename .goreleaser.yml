@@ -6,8 +6,6 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - cd cmd/server && go mod tidy
-    - cd cmd/cli && go mod tidy
 
 builds:
   - id: artifact-server

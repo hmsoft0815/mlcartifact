@@ -8,6 +8,9 @@
 A Go library for communicating with the **artifact storage service** via gRPC.
 Includes the server (`artifact-server`) and a command-line client (`artifact-cli`).
 
+Copyright (c) 2026 Michael Lechner. All rights reserved.
+Licensed under the MIT License.
+
 > 🇩🇪 [Deutsche Version](README.de.md)
 
 ## Why Model Context Protocol (MCP)?

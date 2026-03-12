@@ -1,4 +1,11 @@
 // Copyright (c) 2026 Michael Lechner. All rights reserved.
+
+// Package storage provides a file-based storage backend for artifacts.
+// It manages both the binary content and the associated JSON metadata.
+//
+// Artifacts can be stored in a global namespace or scoped to a specific user.
+// Files are stored with a unique ID prefix to avoid filename collisions and
+// to allow retrieval by either the ID or the original filename.
 package storage
 
 import (
@@ -12,31 +19,43 @@ import (
 	"unicode/utf8"
 )
 
+// utf8Valid reports whether s is a valid UTF-8 string.
 func utf8Valid(s string) bool {
 	return utf8.ValidString(s)
 }
 
+// ArtifactMetadata contains all descriptive information about a stored file.
+// It is persisted as a companion .json file alongside the actual artifact data.
 type ArtifactMetadata struct {
-	ID          string                 `json:"id"`
-	Filename    string                 `json:"filename"`
-	MimeType    string                 `json:"mime_type"`
+	ID          string                 `json:"id"`          // Unique short ID generated at write time
+	Filename    string                 `json:"filename"`    // Original filename provided by the client
+	MimeType    string                 `json:"mime_type"`   // Detected or provided MIME type
 	Description string                 `json:"description,omitempty"`
 	Source      string                 `json:"source,omitempty"`
-	UserID      string                 `json:"user_id,omitempty"`
+	UserID      string                 `json:"user_id,omitempty"` // Optional owner of the artifact
 	CreatedAt   time.Time              `json:"created_at"`
-	ExpiresAt   time.Time              `json:"expires_at"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ExpiresAt   time.Time              `json:"expires_at"` // Scheduled deletion time
+	Metadata    map[string]interface{} `json:"metadata,omitempty"` // Arbitrary custom metadata
 }
 
+// Store handles the persistence of artifacts on the local filesystem.
 type Store struct {
-	BaseDir string
+	BaseDir string // Root directory where all artifacts and users are stored
 }
 
+// NewStore initializes a new Store with the given base directory.
 func NewStore(baseDir string) *Store {
 	return &Store{BaseDir: baseDir}
 }
 
-// Write saves content to the store.
+// Write saves content and its metadata to the store.
+//
+// It performs several steps:
+// 1. Validates input (UTF-8 checks).
+// 2. Determines the storage directory based on the userID (global vs user-scoped).
+// 3. Generates a unique ID (based on timestamp and random bytes).
+// 4. Detects the MIME type if not provided.
+// 5. Writes the binary content and the JSON metadata to disk.
 func (s *Store) Write(filename string, content []byte, mimeType string, expiresHours int, source string, userID string, description string, metadata map[string]interface{}) (*ArtifactMetadata, error) {
 	if description != "" && utf8Valid(description) == false {
 		return nil, fmt.Errorf("description contains invalid UTF-8 characters")
@@ -103,7 +122,8 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 	return meta, nil
 }
 
-// Read retrieves content and metadata.
+// Read retrieves content and metadata for a given ID or filename.
+// If multiple files match a filename, the newest one (highest ID prefix) is returned.
 func (s *Store) Read(idOrFilename string, userID string) ([]byte, *ArtifactMetadata, error) {
 	prefixDir := filepath.Join(s.BaseDir, "global")
 	if userID != "" {
@@ -145,7 +165,8 @@ func (s *Store) Read(idOrFilename string, userID string) ([]byte, *ArtifactMetad
 	return nil, nil, fmt.Errorf("artifact not found")
 }
 
-// List returns all artifacts for a user (or global) with pagination.
+// List returns all artifacts for a specific user (or the global store if userID is empty).
+// Results are paginated via limit and offset.
 func (s *Store) List(userID string, limit, offset int) ([]*ArtifactMetadata, error) {
 	prefixDir := filepath.Join(s.BaseDir, "global")
 	if userID != "" {
@@ -190,7 +211,8 @@ func (s *Store) List(userID string, limit, offset int) ([]*ArtifactMetadata, err
 	return results[offset:end], nil
 }
 
-// Delete removes an artifact and its metadata.
+// Delete removes an artifact and its associated metadata JSON file.
+// Returns true if the artifact was found and deleted, false otherwise.
 func (s *Store) Delete(idOrFilename string, userID string) (bool, error) {
 	prefixDir := filepath.Join(s.BaseDir, "global")
 	if userID != "" {
@@ -217,7 +239,8 @@ func (s *Store) Delete(idOrFilename string, userID string) (bool, error) {
 	return false, nil
 }
 
-// Cleanup removes expired artifacts recursively.
+// Cleanup performs a recursive walk of the BaseDir and removes any artifacts
+// whose expiration time (ExpiresAt) has passed.
 func (s *Store) Cleanup() {
 	_ = filepath.Walk(s.BaseDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".json") {
@@ -240,6 +263,8 @@ func (s *Store) Cleanup() {
 	})
 }
 
+// DetectMimeType returns a MIME type string based on the file extension.
+// It supports common types used in LLM and data processing workflows.
 func DetectMimeType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {

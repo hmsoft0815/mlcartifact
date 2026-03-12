@@ -1,4 +1,8 @@
 // Copyright (c) 2026 Michael Lechner. All rights reserved.
+
+// Package handlers provides the Model Context Protocol (MCP) tool implementations
+// for the artifact service. These handlers allow LLMs to interact with the
+// artifact store via the MCP framework.
 package handlers
 
 import (
@@ -12,27 +16,27 @@ import (
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
 )
 
-// WriteArtifactArgs defines the input for saving an artifact.
+// WriteArtifactArgs defines the input for saving an artifact via MCP.
 type WriteArtifactArgs struct {
-	Filename       string                 `json:"filename"`
-	Content        string                 `json:"content"`
-	Description    string                 `json:"description,omitempty"`
-	MimeType       string                 `json:"mime_type,omitempty"`
-	ExpiresInHours int                    `json:"expires_in_hours,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
-	UserID         string                 `json:"user_id,omitempty"`
+	Filename       string                 `json:"filename"`         // Desired filename (e.g. "report.md")
+	Content        string                 `json:"content"`          // Text content to store
+	Description    string                 `json:"description,omitempty"` // Optional human-readable description
+	MimeType       string                 `json:"mime_type,omitempty"`   // Optional MIME type (autodetected if empty)
+	ExpiresInHours int                    `json:"expires_in_hours,omitempty"` // Hours until auto-deletion (default 24)
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`     // Arbitrary key-value pairs
+	UserID         string                 `json:"user_id,omitempty"`      // Scopes the artifact to a specific user
 }
 
 var store = storage.NewStore(".artifacts")
 
-// SetStore updates the store used by handlers.
+// SetStore updates the global store instance used by all MCP handlers.
 func SetStore(s *storage.Store) {
 	store = s
 }
 
 const errInvalidArgs = "invalid arguments: "
 
-// MCPListLimit defines the maximum number of artifacts returned via MCP.
+// MCPListLimit defines the default maximum number of artifacts returned via MCP.
 var MCPListLimit = 100
 
 // SetMCPListLimit updates the default limit for listing artifacts.
@@ -40,7 +44,8 @@ func SetMCPListLimit(limit int) {
 	MCPListLimit = limit
 }
 
-// WriteArtifact saves a file to the artifacts directory and returns a reference.
+// WriteArtifact is an MCP tool handler that saves a file to the artifacts store.
+// It returns a JSON response containing the artifact ID and a reference tag.
 func WriteArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// 1. Run Cleanup first to keep house clean
 	store.Cleanup()
@@ -88,13 +93,13 @@ func WriteArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	return mcp.NewToolResultText(string(resBytes)), nil
 }
 
-// ReadArtifactArgs defines the input for reading an artifact.
+// ReadArtifactArgs defines the input for reading an artifact via MCP.
 type ReadArtifactArgs struct {
-	ID     string `json:"id"`
-	UserID string `json:"user_id,omitempty"`
+	ID     string `json:"id"`               // The ID or filename of the artifact
+	UserID string `json:"user_id,omitempty"` // The user scope
 }
 
-// ReadArtifact retrieves an artifact's content.
+// ReadArtifact is an MCP tool handler that retrieves an artifact's content.
 func ReadArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args ReadArtifactArgs
 	argBytes, _ := json.Marshal(req.Params.Arguments)
@@ -117,12 +122,12 @@ func ReadArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	return mcp.NewToolResultText(string(content)), nil
 }
 
-// ListArtifactsArgs defines the input for listing artifacts.
+// ListArtifactsArgs defines the input for listing artifacts via MCP.
 type ListArtifactsArgs struct {
-	UserID string `json:"user_id,omitempty"`
+	UserID string `json:"user_id,omitempty"` // Optional user scope to filter results
 }
 
-// ListArtifacts returns all artifacts.
+// ListArtifacts is an MCP tool handler that returns a list of available artifacts.
 func ListArtifacts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args ListArtifactsArgs
 	argBytes, _ := json.Marshal(req.Params.Arguments)
@@ -138,13 +143,13 @@ func ListArtifacts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	return mcp.NewToolResultText(string(resBytes)), nil
 }
 
-// DeleteArtifactArgs defines the input for deleting an artifact.
+// DeleteArtifactArgs defines the input for deleting an artifact via MCP.
 type DeleteArtifactArgs struct {
-	ID     string `json:"id"`
-	UserID string `json:"user_id,omitempty"`
+	ID     string `json:"id"`               // The ID or filename of the artifact to delete
+	UserID string `json:"user_id,omitempty"` // The user scope
 }
 
-// DeleteArtifact removes an artifact.
+// DeleteArtifact is an MCP tool handler that removes an artifact from the store.
 func DeleteArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args DeleteArtifactArgs
 	argBytes, _ := json.Marshal(req.Params.Arguments)

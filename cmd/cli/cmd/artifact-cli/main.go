@@ -16,13 +16,21 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+var version = "dev"
+
 func main() {
 	addr := flag.String("addr", os.Getenv("ARTIFACT_GRPC_ADDR"), "Artifact server gRPC address")
+	v := flag.Bool("version", false, "Print version and exit")
 	if *addr == "" {
 		*addr = "localhost:50051"
 	}
 
 	flag.Parse()
+
+	if *v {
+		fmt.Printf("artifact-cli version: %s\n", version)
+		return
+	}
 
 	if flag.NArg() < 1 {
 		usage()

@@ -2,80 +2,128 @@
 
 A universal, clean, and fully typed TypeScript client for the `mlcartifact` service.
 
+## Overview
+
+The `mlcartifact` service provides a shared storage backend for AI agents and tools. This TypeScript client allows you to easily interact with the service from any environment (Browser, Node.js, Deno, Bun, or Edge functions).
+
+It uses the [Connect](https://connectrpc.com/) protocol, which is a slim, type-safe alternative to traditional gRPC that works seamlessly over standard HTTP/1.1 or HTTP/2.
+
 ## Features
 
-- **Universal:** Works in Browser, Node.js, Deno, Bun, and Edge functions (Cloudflare Workers, etc.).
-- **Lightweight:** Uses the modern Connect RPC protocol and the standard `fetch` API.
-- **Fully Typed:** Auto-generated types from Protobuf for maximum safety.
-- **Dual Protocol:** The server supports both standard gRPC and the web-friendly Connect protocol.
+- **🚀 Universal:** Works everywhere `fetch` is available.
+- **🛡️ Fully Typed:** All requests and responses are strongly typed via Protobuf.
+- **🪶 Lightweight:** Minimal dependencies, optimized for modern environments.
+- **🔌 Connect Protocol:** Web-friendly, no need for complex gRPC-web proxies.
 
 ## Installation
-
-If the package is published to npm (not yet !):
 
 ```bash
 npm install @hmsoft0815/mlcartifact-client
 ```
 
-### Local Development & Usage
-
-
-**Option A: npm link (Recommended for development)**
-1. In `client-ts/`, run: `npm link`
-2. In your target project, run: `npm link @hmsoft0815/mlcartifact-client`
-
-**Option B: File Reference**
-In your target project's `package.json`, add:
-```json
-"dependencies": {
-  "@hmsoft0815/mlcartifact-client": "file:../path/to/mlcartifact/client-ts"
-}
-```
-
-## Usage
+## Quick Start
 
 ```typescript
 import { ArtifactClient } from '@hmsoft0815/mlcartifact-client';
 
-async function main() {
-  // baseUrl defaults to ARTIFACT_GRPC_ADDR env or 'http://localhost:9590'
+async function example() {
+  // baseUrl defaults to ARTIFACT_GRPC_ADDR or 'http://localhost:9590'
   const client = new ArtifactClient();
 
-  // Write an artifact (accepts string or Uint8Array)
-  const resp = await client.write('test.txt', 'Hello from TypeScript!', {
-    description: 'A sample text file',
-    expiresHours: 24,
+  // 1. Write an artifact
+  // Supports string, Uint8Array, or Blob
+  const writeResp = await client.write('hello.md', '# Hello World', {
+    description: 'My first artifact',
+    mimeType: 'text/markdown',
+    expiresHours: 48,
+    metadata: {
+      category: 'testing',
+      importance: 'high'
+    }
   });
-  console.log(`Saved! ID: ${resp.id}, URI: ${resp.uri}`);
 
-  // Read an artifact
-  const data = await client.read(resp.id);
-  // data.content is a Uint8Array
-  console.log(`Content: ${new TextDecoder().decode(data.content)}`);
+  console.log(`Artifact created with ID: ${writeResp.id}`);
 
-  // List artifacts
-  const list = await client.list({ limit: 10 });
-  console.log(`Found ${list.items.length} artifacts`);
+  // 2. Read an artifact
+  const readResp = await client.read(writeResp.id);
+  const text = new TextDecoder().decode(readResp.content);
+  console.log(`Content: ${text}`);
 
-  // Delete
-  await client.delete(resp.id);
+  // 3. List artifacts
+  const listResp = await client.list({ 
+    limit: 5,
+    offset: 0
+  });
+  
+  for (const item of listResp.items) {
+    console.log(`- ${item.filename} (ID: ${item.id})`);
+  }
+
+  // 4. Delete an artifact
+  await client.delete(writeResp.id);
 }
 ```
 
-## Browser Usage
+## API Reference
 
-Since this library uses `fetch`, it works directly in the browser. If your server is on a different domain, ensure CORS is enabled on the server (the `mlcartifact` Go server supports Connect out of the box).
+### `new ArtifactClient(baseUrl?: string, transport?: Transport)`
+
+Creates a new client.
+- `baseUrl`: The URL of the artifact server. Defaults to `process.env.ARTIFACT_GRPC_ADDR` or `http://localhost:9590`.
+- `transport`: Optional custom Connect transport.
+
+### `write(filename: string, content: string | Uint8Array, options?: WriteOptions)`
+
+Saves an artifact to the store.
+- `options.userId`: Scope the artifact to a specific user.
+- `options.expiresHours`: Number of hours until deletion (default: 24).
+- `options.mimeType`: Explicitly set MIME type.
+- `options.source`: Identify the creator of the artifact.
+
+### `read(idOrFilename: string, options?: ReadOptions)`
+
+Retrieves an artifact by ID or original filename.
+
+### `list(options?: ListOptions)`
+
+Returns a list of artifacts.
+- `options.limit`: Max items to return.
+- `options.offset`: Pagination offset.
+- `options.userId`: Filter by user.
+
+### `delete(idOrFilename: string, options?: DeleteOptions)`
+
+Permanently removes an artifact.
 
 ## Environment Variables (Node.js)
 
-The client automatically respects these environment variables if available:
+The client automatically picks up these variables:
 
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `ARTIFACT_GRPC_ADDR` | `http://localhost:9590` | Server base URL |
-| `ARTIFACT_SOURCE` | - | Default source for writes |
-| `ARTIFACT_USER_ID` | - | Default user ID for all operations |
+- `ARTIFACT_GRPC_ADDR`: Server URL (e.g., `https://api.artifacts.local`).
+- `ARTIFACT_USER_ID`: Default user ID for all operations.
+- `ARTIFACT_SOURCE`: Default source tag for writes.
+
+## Advanced: Custom Transport
+
+If you need to add custom headers (like Auth tokens) to every request:
+
+```typescript
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { ArtifactClient } from "@hmsoft0815/mlcartifact-client";
+
+const transport = createConnectTransport({
+  baseUrl: "http://localhost:9590",
+  interceptors: [
+    (next) => async (req) => {
+      req.header.set("Authorization", "Bearer my-token");
+      return await next(req);
+    },
+  ],
+});
+
+const client = new ArtifactClient(undefined, transport);
+```
 
 ## License
 
-MIT
+MIT - Copyright (c) 2026 Michael Lechner

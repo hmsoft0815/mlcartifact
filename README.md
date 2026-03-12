@@ -49,6 +49,17 @@ LLM: "PDF Server: generate a PDF from artifact abc123."
 
 ---
 
+## Why gRPC & The Artifact Pattern?
+
+Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approach to solve the unique challenges of distributed MCP ecosystems:
+
+- **Seamless Portability**: Services can run on the host, in Docker containers (like `mlc-markitdown`), or on a remote server. They all connect to the same storage via gRPC without needing shared volumes or complex filesystem permissions.
+- **High Performance & Type Safety**: Using Protobuf means binary-efficient transfers and specialized, type-safe client libraries for Go and TypeScript.
+- **State for Ephemeral Tools**: Many tools (like Python-based scrapers or ephemeral containers) have no persistent state. The artifact server provides a stable "memory" for these transient processes.
+- **Rich Metadata & Lifecycle**: Every artifact automatically handles MIME types, source tracking, and **automatic expiration**, preventing storage bloat without manual cleanup.
+
+---
+
 ## What's in This Repository
 
 | Component | Description |
@@ -62,7 +73,8 @@ LLM: "PDF Server: generate a PDF from artifact abc123."
 
 ## Documentation
 
-- **[gRPC Messaging & Go Client Library](docs/grpc_messaging.md)** — Detailed technical guide for using the Go library and gRPC API.
+- **[Go Client Library Guide](docs/go_library.md)** — Comprehensive guide for Go developers.
+- **[gRPC API Reference](docs/grpc_messaging.md)** — Detailed technical reference for the gRPC protocol.
 
 ---
 
@@ -93,7 +105,7 @@ artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
 
 ### Use the Go Library in Your MCP Server
 
-See the **[Go Client Documentation](docs/grpc_messaging.md)** for detailed usage and examples.
+See the **[Go Client Library Guide](docs/go_library.md)** for detailed usage and examples.
 
 ```go
 import "github.com/hmsoft0815/mlcartifact"

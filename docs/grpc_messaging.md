@@ -1,6 +1,9 @@
-# gRPC Messaging & Go Client Library
+# gRPC API Reference
 
-This document describes the gRPC communication layer of `mlcartifact` and how to use the provided Go library (`github.com/hmsoft0815/mlcartifact`) to interact with the artifact storage.
+This document describes the low-level gRPC communication layer of `mlcartifact`. 
+
+> [!TIP]
+> **Go Developers:** If you are using our Go library, please refer to the **[Go Client Library Guide](go_library.md)** for a more high-level and user-friendly documentation.
 
 ## Overview
 

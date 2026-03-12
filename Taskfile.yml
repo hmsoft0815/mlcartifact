@@ -4,6 +4,8 @@ vars:
   MODULE: github.com/hmsoft0815/mlcartifact
   SERVER_BIN: ./bin/artifact-server
   CLI_BIN: ./bin/artifact-cli
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
 
 tasks:
   default:
@@ -22,7 +24,7 @@ tasks:
     desc: Build the artifact-server binary
     cmds:
       - mkdir -p ./bin
-      - go build -o {{.SERVER_BIN}} ./cmd/server
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.SERVER_BIN}} ./cmd/server
     sources:
       - cmd/server/**/*.go
       - "*.go"
@@ -34,7 +36,7 @@ tasks:
     desc: Build the artifact-cli binary
     cmds:
       - mkdir -p ./bin
-      - go build -o {{.CLI_BIN}} ./cmd/cli/cmd/artifact-cli
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.CLI_BIN}} ./cmd/cli/cmd/artifact-cli
     sources:
       - cmd/cli/**/*.go
     generates:

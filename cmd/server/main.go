@@ -21,8 +21,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const (
-	version = "1.2.0"
+var (
+	version = "dev"
 	name    = "artifact-server"
 )
 
@@ -30,12 +30,13 @@ func getTools() []mcp.Tool {
 	return []mcp.Tool{
 		mcp.NewTool(
 			"write_artifact",
-			mcp.WithDescription(`Saves a generated file (like a converted Markdown, a report, or a code snippet) to a secure artifact storage.
+			mcp.WithDescription(`Saves a file (e.g., Markdown, PDF, Spreadsheet, or Code) to a secure artifact storage.
 This tool returns a JSON object containing the 'id', 'filename', and 'expires_at' (ISO timestamp) of the saved artifact.
-YOU MUST include the specialized <file id="...">filename</file> tag in your final response to the user so they can access the file.`),
+YOU MUST notify the user clearly in your final response that the file has been saved. 
+Include a hint like: "The complete file is available in the artifact server under id = {id}".`),
 			mcp.WithString("filename",
 				mcp.Required(),
-				mcp.Description("The desired name for the file (e.g., 'converted_doc.md')."),
+				mcp.Description("The desired name for the file (e.g., 'report.pdf', 'data.csv', 'script.py')."),
 			),
 			mcp.WithString("content",
 				mcp.Required(),
@@ -47,6 +48,10 @@ YOU MUST include the specialized <file id="...">filename</file> tag in your fina
 			mcp.WithNumber("expires_in_hours",
 				mcp.Description("Optional: Hours after which the file should be deleted (default 24)."),
 			),
+			mcp.WithToolIcons(mcp.Icon{
+				Src:      "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xNCAydkg2YTIgMiAwIDAgMC0yIDJ2MTZhMiAyIDAgMCAwIDIgMmgxMmEyIDIgMCAwIDAgMi0yVjhsLTYtNnoiLz48cG9seWxpbmUgcG9pbnRzPSIxNCAyIDE0IDggMjAgOCIvPjwvc3ZnPg==",
+				MIMEType: "image/svg+xml",
+			}),
 		),
 		mcp.NewTool(
 			"read_artifact",
@@ -122,7 +127,7 @@ func main() {
 		mux.Handle(path, handler)
 
 		slog.Info("Connect/gRPC server started", "addr", *grpcAddr)
-		
+
 		// Setup CORS for browser access
 		c := cors.New(cors.Options{
 			AllowedOrigins: []string{"*"}, // Adjust in production

@@ -13,6 +13,8 @@ builds:
     binary: artifact-server
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -X main.version=\{{.Version}}
     goos:
       - linux
       - windows
@@ -26,6 +28,8 @@ builds:
     binary: artifact-cli
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -X main.version=\{{.Version}}
     goos:
       - linux
       - windows

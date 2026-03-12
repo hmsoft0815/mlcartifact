@@ -1,4 +1,8 @@
 // Copyright (c) 2026 Michael Lechner. All rights reserved.
+
+// Package grpc provides the gRPC and Connect RPC implementation of the
+// ArtifactService. It acts as a bridge between the network protocol and
+// the internal storage backend.
 package grpc
 
 import (
@@ -11,15 +15,19 @@ import (
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 )
 
+// Server implements the ArtifactService gRPC interface.
 type Server struct {
 	pb.UnimplementedArtifactServiceServer
-	Store *storage.Store
+	Store *storage.Store // The underlying file storage backend
 }
 
+// NewServer creates a new gRPC server instance with the provided store.
 func NewServer(store *storage.Store) *Server {
 	return &Server{Store: store}
 }
 
+// Write handles the creation or update of an artifact.
+// It maps the proto metadata and content to the storage.Write method.
 func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResponse, error) {
 	slog.Info("gRPC Write request", "filename", req.Filename, "source", req.Source, "user_id", req.UserId)
 
@@ -52,6 +60,7 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 	}, nil
 }
 
+// Read retrieves an artifact's content and metadata by ID or filename.
 func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
 	slog.Info("gRPC Read request", "id", req.Id, "user_id", req.UserId)
 
@@ -67,6 +76,7 @@ func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 	}, nil
 }
 
+// Delete removes an artifact permanently.
 func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
 	slog.Info("gRPC Delete request", "id", req.Id, "user_id", req.UserId)
 	deleted, err := s.Store.Delete(req.Id, req.UserId)
@@ -76,6 +86,7 @@ func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteR
 	return &pb.DeleteResponse{Deleted: deleted}, nil
 }
 
+// List returns a paginated list of artifacts for a user.
 func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
 	slog.Info("gRPC List request", "user_id", req.UserId, "limit", req.Limit, "offset", req.Offset)
 	items, err := s.Store.List(req.UserId, int(req.Limit), int(req.Offset))

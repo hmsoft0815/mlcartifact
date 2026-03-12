@@ -49,6 +49,17 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 
 ---
 
+## Warum gRPC & das Artefakt-Muster?
+
+Über einfache lokale Dateispeicherung hinaus nutzt `mlcartifact` einen gRPC-zentrierten Ansatz, um die spezifischen Herausforderungen verteilter MCP-Ökosysteme zu lösen:
+
+- **Nahtlose Portabilität**: Dienste können auf dem Host, in Docker-Containern (wie `mlc-markitdown`) oder auf einem entfernten Server laufen. Alle verbinden sich via gRPC mit demselben Speicher, ohne dass gemeinsame Volumes oder komplexe Dateisystemrechte konfiguriert werden müssen.
+- **Hohe Performance & Typsicherheit**: Die Nutzung von Protobuf ermöglicht binär-effiziente Übertragungen und bietet typsichere Client-Bibliotheken für Go und TypeScript.
+- **Zustand für ephemere Tools**: Viele Tools (wie Python-basierte Scraper oder kurzlebige Container) haben keinen eigenen persistenten Zustand. Der Artefakt-Server dient als stabiles „Gedächtnis“ für diese transienten Prozesse.
+- **Metadaten & Lebenszyklus**: Jedes Artefakt verwaltet automatisch MIME-Typen, Herkunftsnachweise und ein **automatisches Ablaufdatum**. Das verhindert das unkontrollierte Anwachsen des Speichers ohne manuelles Eingreifen.
+
+---
+
 ## Was ist in diesem Repository?
 
 | Komponente | Beschreibung |
@@ -62,7 +73,8 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 
 ## Dokumentation
 
-- **[gRPC-Messaging & Go-Bibliothek](docs/grpc_messaging.md)** — Detaillierte technische Anleitung zur Nutzung der Go-Bibliothek und gRPC-API.
+- **[Go-Client-Bibliothek Handbuch](docs/go_library.md)** — Umfassender Guide für Go-Entwickler.
+- **[gRPC-API-Referenz](docs/grpc_messaging.md)** — Detaillierte technische Referenz für das gRPC-Protokoll.
 
 ---
 
@@ -93,7 +105,7 @@ artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
 
 ### Go-Bibliothek in deinem MCP-Server nutzen
 
-Siehe die **[Go-Client-Dokumentation](docs/grpc_messaging.md)** für detaillierte Beispiele.
+Siehe das **[Go-Client-Bibliothek Handbuch](docs/go_library.md)** für detaillierte Beispiele.
 
 ```go
 import "github.com/hmsoft0815/mlcartifact"

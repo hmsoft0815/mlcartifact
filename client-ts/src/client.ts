@@ -6,15 +6,21 @@ import { WriteOptions, ReadOptions, ListOptions, DeleteOptions } from "./options
 
 /**
  * Universal Client for the mlcartifact service.
- * Works in Browser, Node.js, and Edge environments.
+ * Works seamlessly in Browser, Node.js, and Edge environments.
+ * 
+ * The client uses the Connect protocol to communicate with the artifact server.
+ * It automatically handles environment variables in Node.js environments.
  */
 export class ArtifactClient {
   private client: Client<typeof ArtifactService>;
 
   /**
    * Creates a new ArtifactClient.
-   * @param baseUrl The base URL of the artifact server (e.g. 'http://localhost:9590').
-   * @param transport Optional custom transport (useful for testing/mocking).
+   * 
+   * @param baseUrl - The base URL of the artifact server (e.g. 'http://localhost:9590').
+   *                  If omitted, it looks for ARTIFACT_GRPC_ADDR env var.
+   * @param transport - Optional custom transport. If provided, baseUrl is ignored.
+   *                    Useful for adding interceptors or mocking in tests.
    */
   constructor(baseUrl?: string, transport?: Transport) {
     if (transport) {
@@ -38,6 +44,11 @@ export class ArtifactClient {
 
   /**
    * Writes an artifact to the store.
+   * 
+   * @param filename - The name of the file (e.g. 'result.json').
+   * @param content - The data to store. Can be a string or a Uint8Array.
+   * @param opts - Optional configuration (expiresHours, mimeType, userId, etc.).
+   * @returns A promise resolving to the WriteResponse (includes artifact ID and URI).
    */
   async write(filename: string, content: Uint8Array | string, opts: WriteOptions = {}): Promise<WriteResponse> {
     const envSource = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_SOURCE;
@@ -63,6 +74,10 @@ export class ArtifactClient {
 
   /**
    * Reads an artifact from the store.
+   * 
+   * @param idOrFilename - The unique ID or the filename of the artifact to retrieve.
+   * @param opts - Optional configuration (userId).
+   * @returns A promise resolving to the ReadResponse (includes content and mimeType).
    */
   async read(idOrFilename: string, opts: ReadOptions = {}): Promise<ReadResponse> {
     const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;
@@ -76,7 +91,10 @@ export class ArtifactClient {
   }
 
   /**
-   * Lists artifacts.
+   * Lists artifacts available in the store.
+   * 
+   * @param opts - Optional filters and pagination (limit, offset, userId, source).
+   * @returns A promise resolving to the ListResponse containing an array of ArtifactInfo.
    */
   async list(opts: ListOptions = {}): Promise<ListResponse> {
     const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;
@@ -92,8 +110,12 @@ export class ArtifactClient {
   }
 
   /**
-   * Deletes an artifact.
-   * This is a permanent operation.
+   * Deletes an artifact from the store.
+   * This is a permanent operation and cannot be undone.
+   * 
+   * @param idOrFilename - The unique ID or the filename of the artifact to delete.
+   * @param opts - Optional configuration (userId).
+   * @returns A promise resolving to the DeleteResponse (indicates success/failure).
    */
   async delete(idOrFilename: string, opts: DeleteOptions = {}): Promise<DeleteResponse> {
     const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;

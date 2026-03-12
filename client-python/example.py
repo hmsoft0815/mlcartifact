@@ -1,3 +1,4 @@
+## This file is part of the mlcartifact server examples.
 from mlcartifact import ArtifactClient
 import os
 
@@ -19,7 +20,7 @@ def main():
                 description="Saved from Python example",
                 source="python-client"
             )
-            print(f"Successfully saved artifact:")
+            print("Successfully saved artifact:")
             print(f"  ID: {res.id}")
             print(f"  URI: {res.uri}")
             

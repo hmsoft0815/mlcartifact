@@ -51,11 +51,24 @@ run-server-sse:
 	go run ./cmd/server -addr :8082 -grpc-addr :9590
 
 # Protobuf generation
-proto:
+proto: proto-go proto-ts proto-python
+
+proto-go:
 	cd proto && protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
 		--connect-go_out=. --connect-go_opt=paths=source_relative \
 		artifact.proto
+
+proto-ts:
+	@echo "Checking TypeScript generate script in client-ts..."
+	cd client-ts && npm run generate
+
+proto-python:
+	mkdir -p client-python/mlcartifact/gen
+	python3 -m grpc_tools.protoc -I proto --python_out=client-python/mlcartifact/gen \
+		--grpc_python_out=client-python/mlcartifact/gen \
+		proto/artifact.proto
+	touch client-python/mlcartifact/gen/__init__.py
 
 # TypeScript Client Distribution Build
 dist-ts:

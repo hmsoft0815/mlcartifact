@@ -74,6 +74,7 @@ Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approac
 ## Documentation
 
 - **[Go Client Library Guide](docs/go_library.md)** — Comprehensive guide for Go developers.
+- **[Python Client](client-python/README.md)** — Implementation and usage for Python developers.
 - **[gRPC API Reference](docs/grpc_messaging.md)** — Detailed technical reference for the gRPC protocol.
 
 ---

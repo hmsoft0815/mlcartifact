@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlcartifact"
+version = "0.2.0"
+description = "Python client for mlcartifact service"
+readme = "README.md"
+authors = [{ name = "Michael Lechner" }]
+license = { text = "MIT" }
+dependencies = [
+    "httpx>=0.24.0",
+    "connectrpc>=0.1.0",
+    "protobuf>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "grpcio-tools",
+    "pytest",
+    "black",
+    "isort",
+]

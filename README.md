@@ -139,7 +139,7 @@ fmt.Println("artifact_id:", resp.Id)
 }
 ```
 
-Or connect to a running instance via SSE:
+Or connect to a running instance via SSE (recommended, but requires to start the server prior to using it):
 ```json
 {
   "mcpServers": {

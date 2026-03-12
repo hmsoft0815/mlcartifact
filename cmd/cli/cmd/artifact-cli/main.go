@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/hmsoft0815/mlcartifact"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var version = "dev"
@@ -37,7 +35,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cli, err := mlcartifact.NewClientWithAddr(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cli, err := mlcartifact.NewClientWithAddr(*addr)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

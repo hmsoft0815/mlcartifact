@@ -25,6 +25,7 @@ func main() {
     ctx := context.Background()
 
     // 1. Initialize client (reads ARTIFACT_GRPC_ADDR)
+    // Automatically supports HTTP/2 (H2C) and falls back to HTTP/1.1
     client, err := mlcartifact.NewClient()
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
@@ -64,13 +65,20 @@ The client automatically respects the following environment variables:
 
 ### Manual Connection
 
-If you need to connect to a specific address or provide custom gRPC dial options:
+If you need to connect to a specific address or provide a custom `http.Client`:
 
 ```go
-client, err := mlcartifact.NewClientWithAddr("remote-host:9590", 
-    grpc.WithTransportCredentials(insecure.NewCredentials()),
-)
+client, err := mlcartifact.NewClientWithAddr("remote-host:9590")
 ```
+
+### Firewall-Friendly Communication (Connect-Go)
+
+The library uses the **Connect** protocol instead of raw gRPC. This provides several advantages for library users:
+
+1. **Proxy Compatibility**: It works seamlessly through HTTP/1.1 proxies and load balancers that do not support HTTP/2.
+2. **Firewall Friendly**: It uses standard HTTP POST requests, which are less likely to be blocked than raw gRPC streams.
+3. **No TLS Required for Local H2C**: It supports HTTP/2 over cleartext (H2C) for high performance without the complexity of local certificate management.
+4. **Browser Support**: The underlying protocol is compatible with `gRPC-Web`, making it easier to integrate with web frontends.
 
 ## Advanced Usage
 

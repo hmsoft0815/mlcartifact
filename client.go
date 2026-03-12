@@ -31,67 +31,92 @@ package mlcartifact
 
 import (
 	"context"
-	"fmt"
+	"crypto/tls"
+	"net"
+	"net/http"
 	"os"
-	"time"
+	"strings"
 
+	connect "connectrpc.com/connect"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
+	"golang.org/x/net/http2"
 )
 
-// Client is a gRPC client for the artifact service. It is thread-safe and can
+// Client is a gRPC/Connect client for the artifact service. It is thread-safe and can
 // be shared across multiple goroutines.
 type Client struct {
-	conn *grpc.ClientConn
-	cli  pb.ArtifactServiceClient
+	httpClient *http.Client
+	cli        protoconnect.ArtifactServiceClient
 }
 
-// NewClient creates a new gRPC client using settings from environment variables.
+// NewClient creates a new client using settings from environment variables.
 // It reads ARTIFACT_GRPC_ADDR, defaulting to ":9590" if not set.
-// Standard insecure credentials are used unless DialOptions are provided.
-func NewClient(opts ...grpc.DialOption) (*Client, error) {
+func NewClient() (*Client, error) {
 	addr := os.Getenv("ARTIFACT_GRPC_ADDR")
 	if addr == "" {
 		addr = ":9590"
 	}
-	return NewClientWithAddr(addr, opts...)
+	return NewClientWithAddr(addr)
+}
+
+// ClientOption is a functional option for configuring the Client.
+type ClientOption func(*clientSettings)
+
+type clientSettings struct {
+	httpClient *http.Client
+}
+
+// WithHTTPClient provides a custom http.Client.
+func WithHTTPClient(c *http.Client) ClientOption {
+	return func(s *clientSettings) {
+		s.httpClient = c
+	}
 }
 
 // NewClientWithAddr creates a new client for a specific server address.
-func NewClientWithAddr(addr string, opts ...grpc.DialOption) (*Client, error) {
-	if len(opts) == 0 {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// It automatically supports HTTP/2 (H2C) and falls back to HTTP/1.1 if needed.
+func NewClientWithAddr(addr string, opts ...ClientOption) (*Client, error) {
+	settings := &clientSettings{}
+	for _, opt := range opts {
+		opt(settings)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	if settings.httpClient == nil {
+		// Default client with H2C support for cleartext HTTP/2
+		settings.httpClient = &http.Client{
+			Transport: &http2.Transport{
+				AllowHTTP: true,
+				DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, network, addr)
+				},
+			},
+		}
+	}
 
-	conn, err := grpc.DialContext(ctx, addr, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial artifact service at %s: %w", addr, err)
+	// Ensure addr has a scheme for Connect
+	baseURL := addr
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "http://" + baseURL
 	}
 
 	return &Client{
-		conn: conn,
-		cli:  pb.NewArtifactServiceClient(conn),
+		httpClient: settings.httpClient,
+		cli:        protoconnect.NewArtifactServiceClient(settings.httpClient, baseURL),
 	}, nil
 }
 
 // NewClientWithService creates a client wrapping an existing service implementation.
 // This is primarily used for unit testing with mocked services.
-func NewClientWithService(service pb.ArtifactServiceClient) *Client {
+func NewClientWithService(service protoconnect.ArtifactServiceClient) *Client {
 	return &Client{
 		cli: service,
 	}
 }
 
-// Close closes the underlying gRPC connection.
+// Close is a no-op for the Connect client as it uses the shared http.Client.
 func (c *Client) Close() error {
-	if c.conn == nil {
-		return nil
-	}
-	return c.conn.Close()
+	return nil
 }
 
 // Write saves an artifact to the store.
@@ -113,7 +138,11 @@ func (c *Client) Write(ctx context.Context, filename string, content []byte, opt
 		opt(req)
 	}
 
-	return c.cli.Write(ctx, req)
+	res, err := c.cli.Write(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }
 
 // Read retrieves an artifact by its unique ID or its filename.
@@ -130,7 +159,11 @@ func (c *Client) Read(ctx context.Context, idOrFilename string, opts ...ReadOpti
 		opt(req)
 	}
 
-	return c.cli.Read(ctx, req)
+	res, err := c.cli.Read(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }
 
 // List returns metadata for artifacts, optionally filtered by user ID.
@@ -146,7 +179,11 @@ func (c *Client) List(ctx context.Context, userID string, opts ...ListOption) (*
 		opt(req)
 	}
 
-	return c.cli.List(ctx, req)
+	res, err := c.cli.List(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }
 
 // Delete removes an artifact and its metadata from the store.
@@ -159,7 +196,11 @@ func (c *Client) Delete(ctx context.Context, idOrFilename string, opts ...Delete
 		opt(req)
 	}
 
-	return c.cli.Delete(ctx, req)
+	res, err := c.cli.Delete(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }
 
 // WriteOption is a functional option for configuring Write requests.

@@ -2,65 +2,48 @@ package mlcartifact
 
 import (
 	"context"
-	"net"
 	"testing"
 
+	connect "connectrpc.com/connect"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
+	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
 )
 
-type mockArtifactServer struct {
-	pb.UnimplementedArtifactServiceServer
+type mockArtifactClient struct {
+	protoconnect.UnimplementedArtifactServiceHandler
 	lastWrite *pb.WriteRequest
 }
 
-func (m *mockArtifactServer) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResponse, error) {
-	m.lastWrite = req
-	return &pb.WriteResponse{
+func (m *mockArtifactClient) Write(ctx context.Context, req *connect.Request[pb.WriteRequest]) (*connect.Response[pb.WriteResponse], error) {
+	m.lastWrite = req.Msg
+	return connect.NewResponse(&pb.WriteResponse{
 		Id:       "test-id",
-		Filename: req.Filename,
+		Filename: req.Msg.Filename,
 		Uri:      "artifact://test-id",
-	}, nil
+	}), nil
 }
 
-func (m *mockArtifactServer) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
-	return &pb.ReadResponse{
+func (m *mockArtifactClient) Read(ctx context.Context, req *connect.Request[pb.ReadRequest]) (*connect.Response[pb.ReadResponse], error) {
+	return connect.NewResponse(&pb.ReadResponse{
 		Content:  []byte("read-data"),
 		Filename: "read.txt",
 		MimeType: "text/plain",
-	}, nil
+	}), nil
+}
+
+func (m *mockArtifactClient) List(ctx context.Context, req *connect.Request[pb.ListRequest]) (*connect.Response[pb.ListResponse], error) {
+	return connect.NewResponse(&pb.ListResponse{}), nil
+}
+
+func (m *mockArtifactClient) Delete(ctx context.Context, req *connect.Request[pb.DeleteRequest]) (*connect.Response[pb.DeleteResponse], error) {
+	return connect.NewResponse(&pb.DeleteResponse{}), nil
 }
 
 func TestClient(t *testing.T) {
-	lis := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	mockSrv := &mockArtifactServer{}
-	pb.RegisterArtifactServiceServer(s, mockSrv)
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			return
-		}
-	}()
-	defer s.Stop()
-
-	// Create client using the buffered connection
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return lis.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
-
-	client := &Client{
-		conn: conn,
-		cli:  pb.NewArtifactServiceClient(conn),
-	}
+	mockCli := &mockArtifactClient{}
+	client := NewClientWithService(mockCli)
 
 	ctx := context.Background()
 
@@ -68,7 +51,7 @@ func TestClient(t *testing.T) {
 	res, err := client.Write(ctx, "hello.txt", []byte("world"), WithSource("test"))
 	require.NoError(t, err)
 	assert.Equal(t, "test-id", res.Id)
-	assert.Equal(t, "test", mockSrv.lastWrite.Source)
+	assert.Equal(t, "test", mockCli.lastWrite.Source)
 
 	// Test Read
 	readRes, err := client.Read(ctx, "test-id")

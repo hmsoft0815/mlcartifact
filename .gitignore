@@ -19,3 +19,4 @@ go.work.sum
 client-ts/node_modules/
 client-ts/dist/
 client-ts/src/gen/
+.task/

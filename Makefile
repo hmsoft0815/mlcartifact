@@ -14,11 +14,11 @@ build: build-server build-cli
 
 build-server:
 	mkdir -p $(BINARY_DIR)
-	go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-server ./cmd/server
+	go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-server ./cmd/artifact-server
 
 build-cli:
 	mkdir -p $(BINARY_DIR)
-	go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli ./cmd/cli/cmd/artifact-cli
+	go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli ./cmd/artifact-cli
 
 # Testing
 test:
@@ -45,10 +45,10 @@ clean:
 
 # Running
 run-server:
-	go run ./cmd/server
+	go run ./cmd/artifact-server
 
 run-server-sse:
-	go run ./cmd/server -addr :8082 -grpc-addr :9590
+	go run ./cmd/artifact-server -addr :8082 -grpc-addr :9590
 
 # Protobuf generation
 proto: proto-go proto-ts proto-python

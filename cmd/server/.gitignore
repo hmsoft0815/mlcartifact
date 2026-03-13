@@ -1,7 +1,0 @@
-# artifact-server - Git Ignore Patterns
-build/
-artifact-server
-.artifacts/
-*.zip
-.DS_Store
-.env

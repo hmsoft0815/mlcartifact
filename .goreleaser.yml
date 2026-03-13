@@ -9,7 +9,7 @@ before:
 
 builds:
   - id: artifact-server
-    main: ./cmd/server
+    main: ./cmd/artifact-server
     binary: artifact-server
     env:
       - CGO_ENABLED=0
@@ -24,7 +24,7 @@ builds:
       - arm64
 
   - id: artifact-cli
-    main: ./cmd/cli/cmd/artifact-cli
+    main: ./cmd/artifact-cli
     binary: artifact-cli
     env:
       - CGO_ENABLED=0

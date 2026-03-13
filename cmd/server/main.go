@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/hmsoft0815/mlcartifact/internal/grpc"
-	"github.com/hmsoft0815/mlcartifact/internal/mcp"
+	artifactmcp "github.com/hmsoft0815/mlcartifact/internal/mcp"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
 	"github.com/rs/cors"
@@ -97,8 +97,8 @@ func main() {
 	// Initialize store and set in handlers
 	store := storage.NewStore(*dataDir)
 	slog.Info("initializing artifact store", "dir", *dataDir)
-	mcp.SetStore(store)
-	mcp.SetMCPListLimit(*mcpLimit)
+	artifactmcp.SetStore(store)
+	artifactmcp.SetMCPListLimit(*mcpLimit)
 
 	if *dump {
 		tools := getTools()
@@ -117,13 +117,13 @@ func main() {
 	for _, t := range getTools() {
 		switch t.Name {
 		case "write_artifact":
-			mcpServer.AddTool(t, mcp.WriteArtifact)
+			mcpServer.AddTool(t, artifactmcp.WriteArtifact)
 		case "read_artifact":
-			mcpServer.AddTool(t, mcp.ReadArtifact)
+			mcpServer.AddTool(t, artifactmcp.ReadArtifact)
 		case "list_artifacts":
-			mcpServer.AddTool(t, mcp.ListArtifacts)
+			mcpServer.AddTool(t, artifactmcp.ListArtifacts)
 		case "delete_artifact":
-			mcpServer.AddTool(t, mcp.DeleteArtifact)
+			mcpServer.AddTool(t, artifactmcp.DeleteArtifact)
 		}
 	}
 

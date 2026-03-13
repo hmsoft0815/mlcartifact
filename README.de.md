@@ -53,10 +53,23 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 
 Über einfache lokale Dateispeicherung hinaus nutzt `mlcartifact` einen gRPC-zentrierten Ansatz, um die spezifischen Herausforderungen verteilter MCP-Ökosysteme zu lösen:
 
-- **Nahtlose Portabilität**: Dienste können auf dem Host, in Docker-Containern (wie `mlc-markitdown`) oder auf einem entfernten Server laufen. Alle verbinden sich via gRPC mit demselben Speicher, ohne dass gemeinsame Volumes oder komplexe Dateisystemrechte konfiguriert werden müssen.
-- **Hohe Performance & Typsicherheit**: Die Nutzung von Protobuf ermöglicht binär-effiziente Übertragungen und bietet typsichere Client-Bibliotheken für Go und TypeScript.
-- **Zustand für ephemere Tools**: Viele Tools (wie Python-basierte Scraper oder kurzlebige Container) haben keinen eigenen persistenten Zustand. Der Artefakt-Server dient als stabiles „Gedächtnis“ für diese transienten Prozesse.
-- **Metadaten & Lebenszyklus**: Jedes Artefakt verwaltet automatisch MIME-Typen, Herkunftsnachweise und ein **automatisches Ablaufdatum**. Das verhindert das unkontrollierte Anwachsen des Speichers ohne manuelles Eingreifen.
+- **Nahtlose Portabilität**: Dienste können auf dem Host, in Docker-Containern oder auf entfernten Servern laufen. Alle verbinden sich via gRPC ohne gemeinsame Volumes oder komplexe Dateisystemrechte.
+- **Erhöhte Sicherheit (Sandboxing)**: MCP-Server benötigen keinen Vollzugriff auf das Dateisystem des Hosts. Sie interagieren nur mit der Artefakt-API, was eine sichere Grenze zwischen deinen Daten und potenziell unsicheren Tools schafft.
+- **Multi-Server-Datenaustausch**: Ermöglicht das „Shared Memory“-Muster, bei dem Server A Daten schreibt und Server B sie liest, orchestriert durch das LLM über IDs.
+- **Metadaten & Lebenszyklus**: Automatische MIME-Typ-Erkennung, Herkunftsnachweise und ein **automatisches Ablaufdatum**.
+
+### Vergleich: gRPC API vs. Lokales Dateisystem
+
+| Feature | `mlcartifact` (gRPC) | Lokales Dateisystem (`/tmp`, etc.) |
+| :--- | :--- | :--- |
+| **Isolierung** | **Hoch** (API-Grenze) | **Niedrig** (OS-Berechtigungen nötig) |
+| **Portabilität** | **Universell** (Netzwerkbasiert) | **Host-gebunden** (Shared Volumes nötig) |
+| **Benutzer-Isolation**| Eingebaute Scoping-Logik | Manuelle Rechteverwaltung |
+| **Bereinigung** | Automatisch (TTL-basiert) | Manuell oder via Cron-Job |
+| **Performance** | Netzwerklatenz (ms) | Festplattengeschwindigkeit |
+| **Komplexität** | Benötigt Server-Prozess | Kein zusätzlicher Prozess |
+
+**Abwägung (Tradeoffs)**: Obwohl gRPC eine geringe Netzwerklatenz einführt und einen laufenden Server-Prozess erfordert, überwiegen in produktiven MCP-Umgebungen die Vorteile in Bezug auf Sicherheit, Multi-Server-Orchestrierung und vereinfachtes Deployment meist deutlich.
 
 ---
 
@@ -68,6 +81,7 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 | **`artifact-cli`** | Kommandozeilen-Tool zum Hochladen, Herunterladen, Auflisten und Löschen. |
 | **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` — direkt in jeden MCP-Server einbettbar. |
 | **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` — Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
+| **Rust SDK** | In `client-rust/` verfügbar — gRPC-Client mittels Tonic. |
 
 ## Ökosystem & Verwandte Projekte
 
@@ -229,6 +243,7 @@ task build-server   # nur den Server bauen
 - [x] **TypeScript / Node.js SDK**
 - [x] **Python SDK** (httpx + connectrpc)
 - [x] **Docker Image** — vorkonfigurierter Server
+- [x] **Rust SDK** (Tonic-basiert)
 - [ ] **Web Dashboard** — Artefakte im Browser verwalten
 
 ---

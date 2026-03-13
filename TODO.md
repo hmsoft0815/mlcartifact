@@ -4,7 +4,7 @@
 - [x] **Python SDK** (httpx + connectrpc)
 - [x] **Docker Image** (Alpine-based, small)
 - [ ] **Web Dashboard** (Browse & Delete artifacts)
-- [ ] **Rust SDK**
+- [x] **Rust SDK** (Tonic based)
 - [ ] **C / C++ SDK** (gRPC based)
 - [ ] **Artifact Expiration Background Task** (currently manual/per-access check)
 - [ ] **Storage Backends** (S3 support)

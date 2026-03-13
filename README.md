@@ -53,10 +53,23 @@ LLM: "PDF Server: generate a PDF from artifact abc123."
 
 Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approach to solve the unique challenges of distributed MCP ecosystems:
 
-- **Seamless Portability**: Services can run on the host, in Docker containers (like `mlc-markitdown`), or on a remote server. They all connect to the same storage via gRPC without needing shared volumes or complex filesystem permissions.
-- **High Performance & Type Safety**: Using Protobuf means binary-efficient transfers and specialized, type-safe client libraries for Go and TypeScript.
-- **State for Ephemeral Tools**: Many tools (like Python-based scrapers or ephemeral containers) have no persistent state. The artifact server provides a stable "memory" for these transient processes.
-- **Rich Metadata & Lifecycle**: Every artifact automatically handles MIME types, source tracking, and **automatic expiration**, preventing storage bloat without manual cleanup.
+- **Seamless Portability**: Services can run on the host, in Docker containers, or on remote servers. They all connect via gRPC without needing shared volumes or complex filesystem permissions.
+- **Enhanced Security (Sandboxing)**: MCP servers don't need broad access to your host's filesystem. They only interact with the Artifact API, providing a secure boundary between your data and potentially untrusted tools.
+- **Multi-Server Data Exchange**: Enables the "Shared Memory" pattern where Server A writes data and Server B reads it, orchestrated by the LLM using only IDs.
+- **Rich Metadata & Lifecycle**: Automatic handling of MIME types, source tracking, and **automatic expiration**.
+
+### Comparison: gRPC API vs. Local Filesystem
+
+| Feature | `mlcartifact` (gRPC) | Local Filesystem (`/tmp`, etc.) |
+| :--- | :--- | :--- |
+| **Isolation** | **High** (API-defined boundary) | **Low** (Requires broad OS permissions) |
+| **Portability** | **Universal** (Network based) | **Host-locked** (Requires shared volumes) |
+| **Multi-User** | Built-in scoping | Manual permission management |
+| **Cleanup** | Automatic (TTL-based) | Manual or cron-job required |
+| **Performance** | Network latency (ms) | Disk I/O speed |
+| **Complexity** | Requires server process | No extra process |
+
+**Tradeoffs**: While gRPC introduces a small network latency and requires a running server process, the benefits in terms of security, multi-server orchestration, and simplified deployment usually far outweigh these costs in production MCP environments.
 
 ---
 
@@ -68,6 +81,7 @@ Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approac
 | **`artifact-cli`** | Command-line tool to upload, download, list, and delete artifacts. |
 | **Go library** | `import "github.com/hmsoft0815/mlcartifact"` — embed directly in any MCP server. |
 | **TypeScript client** | `npm install @hmsoft0815/mlcartifact-client` — Universal client (Node, Browser, Edge) using Connect RPC. |
+| **Rust SDK** | Available in `client-rust/` — gRPC client using Tonic. |
 
 ## Ecosystem & Related Projects
 
@@ -229,7 +243,8 @@ task build-server # server only
 
 - [x] **TypeScript / Node.js SDK**
 - [x] **Python SDK** (httpx + connectrpc)
-- [ ] **Docker Image** — pre-configured server
+- [x] **Docker Image** — pre-configured server
+- [x] **Rust SDK** (Tonic based)
 - [ ] **Web Dashboard** — browse & manage artifacts visually
 
 ---

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/grpc"
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/handlers"
@@ -77,8 +78,8 @@ Include a hint like: "The complete file is available in the artifact server unde
 func main() {
 	dump := flag.Bool("dump", false, "Dump available tools as JSON and exit")
 	v := flag.Bool("version", false, "Print version and exit")
-	addr := flag.String("addr", "", "Listen address for SSE (e.g. ':8080'). If empty, uses stdio.")
-	grpcAddr := flag.String("grpc-addr", ":9590", "Listen address for gRPC service")
+	addr := flag.String("addr", "", "Listen address for SSE (e.g. '127.0.0.1:8080' for local only, or ':8080' for all interfaces). If empty, uses stdio.")
+	grpcAddr := flag.String("grpc-addr", ":9590", "Listen address for gRPC service (e.g. '127.0.0.1:9590' for local only, or ':9590' for all interfaces)")
 	mcpLimit := flag.Int("mcp-list-limit", 100, "Max artifacts to return in MCP list_artifacts")
 
 	defaultDataDir := ".artifacts"
@@ -150,7 +151,11 @@ func main() {
 
 	if *addr != "" {
 		// SSE Mode
-		sse := server.NewSSEServer(mcpServer, server.WithBaseURL(fmt.Sprintf("http://localhost%s", *addr)))
+		host := *addr
+		if strings.HasPrefix(host, ":") {
+			host = "localhost" + host
+		}
+		sse := server.NewSSEServer(mcpServer, server.WithBaseURL(fmt.Sprintf("http://%s", host)))
 		slog.Info("SSE server started", "addr", *addr, "name", name)
 		if err := http.ListenAndServe(*addr, sse); err != nil {
 			slog.Error("http server failed", "err", err)

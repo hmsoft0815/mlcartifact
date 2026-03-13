@@ -199,8 +199,8 @@ Connect via `ARTIFACT_GRPC_ADDR` env var (default: `localhost:9590`) or `-addr` 
 
 | Flag | Default | Description |
 |---|---|---|
-| `-addr` | _(empty)_ | SSE listen address. Empty = stdio mode. |
-| `-grpc-addr` | `:9590` | gRPC address for library connections |
+| `-addr` | _(empty)_ | SSE listen address (e.g. `127.0.0.1:8080` for local, `:8080` for all). Empty = stdio mode. |
+| `-grpc-addr` | `:9590` | gRPC listen address (e.g. `127.0.0.1:9590` for local, `:9590` for all). |
 | `-data-dir` | `~/mlcartifact/storage` | Storage directory |
 | `-mcp-list-limit` | `100` | Max items from `list_artifacts` |
 

@@ -5,7 +5,7 @@ The `mlcartifact` Go library provides a high-level, type-safe API for interactin
 ## Installation
 
 ```bash
-go get github.com/hmsoft0815/mlcartifact
+go get github.com/hmsoft0815/mlcartifact/client
 ```
 
 ## Quick Start
@@ -18,7 +18,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/hmsoft0815/mlcartifact"
+    "github.com/hmsoft0815/mlcartifact/client"
 )
 
 func main() {
@@ -26,16 +26,16 @@ func main() {
 
     // 1. Initialize client (reads ARTIFACT_GRPC_ADDR)
     // Automatically supports HTTP/2 (H2C) and falls back to HTTP/1.1
-    client, err := mlcartifact.NewClient()
+    c, err := client.NewClient()
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
     }
-    defer client.Close()
+    defer c.Close()
 
     // 2. Write an artifact
-    res, err := client.Write(ctx, "hello.txt", []byte("Hello World!"),
-        mlcartifact.WithDescription("A simple test file"),
-        mlcartifact.WithExpiresHours(1),
+    res, err := c.Write(ctx, "hello.txt", []byte("Hello World!"),
+        client.WithDescription("A simple test file"),
+        client.WithExpiresHours(1),
     )
     if err != nil {
         log.Fatalf("Write failed: %v", err)
@@ -44,7 +44,7 @@ func main() {
     fmt.Printf("Created artifact ID: %s\n", res.Id)
 
     // 3. Read it back
-    resRead, err := client.Read(ctx, res.Id)
+    resRead, err := c.Read(ctx, res.Id)
     if err != nil {
         log.Fatalf("Read failed: %v", err)
     }
@@ -68,7 +68,7 @@ The client automatically respects the following environment variables:
 If you need to connect to a specific address or provide a custom `http.Client`:
 
 ```go
-client, err := mlcartifact.NewClientWithAddr("remote-host:9590")
+c, err := client.NewClientWithAddr("remote-host:9590")
 ```
 
 ### Firewall-Friendly Communication (Connect-Go)
@@ -99,10 +99,10 @@ By default, artifacts are saved in a "global" space unless a `UserID` is provide
 
 ```go
 // This artifact will only be visible when reading with the same user ID
-client.Write(ctx, "private.txt", data, mlcartifact.WithUserID("user_123"))
+c.Write(ctx, "private.txt", data, client.WithUserID("user_123"))
 
 // Reading requires the same ID
-client.Read(ctx, "private.txt", mlcartifact.WithReadUserID("user_123"))
+c.Read(ctx, "private.txt", client.WithReadUserID("user_123"))
 ```
 
 ### Error Handling
@@ -113,7 +113,7 @@ The client returns standard gRPC errors. Use the `google.golang.org/grpc/status`
 import "google.golang.org/grpc/status"
 import "google.golang.org/grpc/codes"
 
-res, err := client.Read(ctx, "non-existent")
+res, err := c.Read(ctx, "non-existent")
 if err != nil {
     if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
         fmt.Println("Artifact not found")
@@ -136,7 +136,7 @@ type mockService struct {
 
 func TestMyTool(t *testing.T) {
     mock := &mockService{}
-    client := mlcartifact.NewClientWithService(mock)
+    c := client.NewClientWithService(mock)
     
     // Pass this client to your tool...
 }
@@ -147,9 +147,9 @@ func TestMyTool(t *testing.T) {
 The library version is available as a constant:
 
 ```go
-fmt.Println("mlcartifact version:", mlcartifact.Version)
+fmt.Println("mlcartifact version:", client.Version)
 ```
 
 ## Thread Safety
 
-The `mlcartifact.Client` is **thread-safe**. You should typically create one instance and share it across your entire application/server.
+The `client.Client` is **thread-safe**. You should typically create one instance and share it across your entire application/server.

@@ -11,15 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hmsoft0815/mlcartifact"
+	"github.com/hmsoft0815/mlcartifact/client"
 )
 
 var version = "dev"
 
 func main() {
-	if version == "dev" {
-		version = mlcartifact.Version
-	}
 	addr := flag.String("addr", os.Getenv("ARTIFACT_GRPC_ADDR"), "Artifact server gRPC address")
 	v := flag.Bool("version", false, "Print version and exit")
 	if *addr == "" {
@@ -38,7 +35,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cli, err := mlcartifact.NewClientWithAddr(*addr)
+	cli, err := client.NewClientWithAddr(*addr)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -72,7 +69,7 @@ func usage() {
 	fmt.Println("  download <id/filename> <local-path> [--user ID]")
 }
 
-func handleList(cli *mlcartifact.Client, args []string) {
+func handleList(cli *client.Client, args []string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	limit := fs.Int("limit", 0, "Limit items")
 	offset := fs.Int("offset", 0, "Offset items")
@@ -85,8 +82,8 @@ func handleList(cli *mlcartifact.Client, args []string) {
 	defer cancel()
 
 	items, err := cli.List(ctx, *user,
-		mlcartifact.WithLimit(int32(*limit)),
-		mlcartifact.WithOffset(int32(*offset)),
+		client.WithLimit(int32(*limit)),
+		client.WithOffset(int32(*offset)),
 	)
 	if err != nil {
 		log.Fatalf("List failed: %v", err)
@@ -99,7 +96,7 @@ func handleList(cli *mlcartifact.Client, args []string) {
 	}
 }
 
-func handleDelete(cli *mlcartifact.Client, args []string) {
+func handleDelete(cli *client.Client, args []string) {
 	fs := flag.NewFlagSet("delete", flag.ExitOnError)
 	user := fs.String("user", "", "Scope to user ID")
 	fs.Parse(args)
@@ -112,14 +109,14 @@ func handleDelete(cli *mlcartifact.Client, args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := cli.Delete(ctx, id, mlcartifact.WithDeleteUserID(*user))
+	_, err := cli.Delete(ctx, id, client.WithDeleteUserID(*user))
 	if err != nil {
 		log.Fatalf("Delete failed: %v", err)
 	}
 	fmt.Println("Successfully deleted artifact:", id)
 }
 
-func handleCreate(cli *mlcartifact.Client, args []string) {
+func handleCreate(cli *client.Client, args []string) {
 	fs := flag.NewFlagSet("create", flag.ExitOnError)
 	name := fs.String("name", "", "Override filename")
 	desc := fs.String("description", "", "Add description")
@@ -146,10 +143,10 @@ func handleCreate(cli *mlcartifact.Client, args []string) {
 	defer cancel()
 
 	res, err := cli.Write(ctx, filename, data,
-		mlcartifact.WithUserID(*user),
-		mlcartifact.WithDescription(*desc),
-		mlcartifact.WithExpiresHours(int32(*expires)),
-		mlcartifact.WithSource("artifact-cli"),
+		client.WithUserID(*user),
+		client.WithDescription(*desc),
+		client.WithExpiresHours(int32(*expires)),
+		client.WithSource("artifact-cli"),
 	)
 	if err != nil {
 		log.Fatalf("Create failed: %v", err)
@@ -158,7 +155,7 @@ func handleCreate(cli *mlcartifact.Client, args []string) {
 	fmt.Printf("Artifact created successfully!\nID: %s\nURI: %s\n", res.Id, res.Uri)
 }
 
-func handleDownload(cli *mlcartifact.Client, args []string) {
+func handleDownload(cli *client.Client, args []string) {
 	fs := flag.NewFlagSet("download", flag.ExitOnError)
 	user := fs.String("user", "", "Scope to user ID")
 	fs.Parse(args)
@@ -172,7 +169,7 @@ func handleDownload(cli *mlcartifact.Client, args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	res, err := cli.Read(ctx, id, mlcartifact.WithReadUserID(*user))
+	res, err := cli.Read(ctx, id, client.WithReadUserID(*user))
 	if err != nil {
 		log.Fatalf("Read failed: %v", err)
 	}

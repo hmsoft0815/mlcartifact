@@ -79,7 +79,7 @@ Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approac
 |---|---|
 | **`artifact-server`** | MCP + gRPC server. Stores and serves artifacts. Speaks stdio and SSE. |
 | **`artifact-cli`** | Command-line tool to upload, download, list, and delete artifacts. |
-| **Go library** | `import "github.com/hmsoft0815/mlcartifact"` - embed directly in any MCP server. |
+| **Go library** | `import "github.com/hmsoft0815/mlcartifact/client"` - embed directly in any MCP server. |
 | **TypeScript client** | `npm install @hmsoft0815/mlcartifact-client` - Universal client (Node, Browser, Edge) using Connect RPC. |
 | **Rust SDK** | Available in `client-rust/` - gRPC client using Tonic. |
 
@@ -127,16 +127,16 @@ artifact-server -addr :8082 -grpc-addr :9590 -data-dir ~/mlcartifact/storage
 See the **[Go Client Library Guide](docs/go_library.md)** for detailed usage and examples.
 
 ```go
-import "github.com/hmsoft0815/mlcartifact"
+import "github.com/hmsoft0815/mlcartifact/client"
 
 // Connect (reads ARTIFACT_GRPC_ADDR env var, defaults to :9590)
-client, _ := mlcartifact.NewClient()
-defer client.Close()
+c, _ := client.NewClient()
+defer c.Close()
 
 // Store a large result - returns an ID, not the data
-resp, _ := client.Write(ctx, "report.csv", csvData,
-    mlcartifact.WithMimeType("text/csv"),
-    mlcartifact.WithExpiresHours(24),
+resp, _ := c.Write(ctx, "report.csv", csvData,
+    client.WithMimeType("text/csv"),
+    client.WithExpiresHours(24),
 )
 
 // Tell the LLM: "Done. ID: abc123. Columns: name, total, date."

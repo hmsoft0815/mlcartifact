@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 )
 

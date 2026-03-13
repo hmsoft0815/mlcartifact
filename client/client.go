@@ -2,7 +2,7 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-// Package mlcartifact provides a high-level gRPC client for the mlcartifact service.
+// Package client provides a high-level gRPC client for the mlcartifact service.
 //
 // The service allows AI agents and tools to persist artifacts (files, reports,
 // data) in a shared storage backend. This enables state persistence and
@@ -27,7 +27,7 @@
 // Artifacts can be "global" (accessible to everyone) or scoped to a "UserID".
 // If a UserID is provided (via environment or options), the server ensures
 // that operations are restricted to that user's private storage area.
-package mlcartifact
+package client
 
 import (
 	"context"
@@ -44,7 +44,7 @@ import (
 )
 
 // Version is the current version of the library.
-const Version = "0.3.1"
+const Version = "0.4.0"
 
 // Client is a gRPC/Connect client for the artifact service. It is thread-safe and can
 // be shared across multiple goroutines.

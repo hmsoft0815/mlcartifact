@@ -1,4 +1,4 @@
-package mlcartifact
+package client
 
 import (
 	"context"

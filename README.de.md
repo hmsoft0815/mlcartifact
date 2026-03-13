@@ -79,7 +79,7 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 |---|---|
 | **`artifact-server`** | MCP + gRPC Server. Speichert und liefert Artefakte. Unterstützt stdio und SSE. |
 | **`artifact-cli`** | Kommandozeilen-Tool zum Hochladen, Herunterladen, Auflisten und Löschen. |
-| **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` - direkt in jeden MCP-Server einbettbar. |
+| **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact/client"` - direkt in jeden MCP-Server einbettbar. |
 | **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` - Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
 | **Rust SDK** | In `client-rust/` verfügbar - gRPC-Client mittels Tonic. |
 
@@ -126,16 +126,16 @@ artifact-server -addr :8082 -grpc-addr :9590 -data-dir ~/mlcartifact/storage
 Siehe das **[Go-Client-Bibliothek Handbuch](docs/go_library.md)** für detaillierte Beispiele.
 
 ```go
-import "github.com/hmsoft0815/mlcartifact"
+import "github.com/hmsoft0815/mlcartifact/client"
 
 // Verbinden (liest ARTIFACT_GRPC_ADDR, Standard: :9590)
-client, _ := mlcartifact.NewClient()
-defer client.Close()
+c, _ := client.NewClient()
+defer c.Close()
 
 // Großes Ergebnis speichern - liefert eine ID, keine Daten
-resp, _ := client.Write(ctx, "bericht.csv", csvDaten,
-    mlcartifact.WithMimeType("text/csv"),
-    mlcartifact.WithExpiresHours(24),
+resp, _ := c.Write(ctx, "bericht.csv", csvDaten,
+    client.WithMimeType("text/csv"),
+    client.WithExpiresHours(24),
 )
 
 // Dem LLM mitteilen: "Fertig. ID: abc123. Spalten: name, summe, datum."

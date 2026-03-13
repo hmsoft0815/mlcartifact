@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/hmsoft0815/mlcartifact"
+	"github.com/hmsoft0815/mlcartifact/client"
 )
 
 func main() {
@@ -15,11 +15,11 @@ func main() {
 	defer cancel()
 
 	// 1. Initialize client
-	client, err := mlcartifact.NewClient()
+	c, err := client.NewClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer c.Close()
 
 	fmt.Println("--- mlcartifact Go 'Hello World' Example ---")
 
@@ -35,7 +35,7 @@ func main() {
 
 	ids := make([]string, len(items))
 	for i, item := range items {
-		res, err := client.Write(ctx, item.name, []byte(item.content))
+		res, err := c.Write(ctx, item.name, []byte(item.content))
 		if err != nil {
 			log.Fatalf("Failed to write %s: %v", item.name, err)
 		}
@@ -45,7 +45,7 @@ func main() {
 
 	// 3. Delete one (artifact 2)
 	fmt.Printf("Deleting artifact 2 (ID: %s)...\n", ids[1])
-	_, err = client.Delete(ctx, ids[1])
+	_, err = c.Delete(ctx, ids[1])
 	if err != nil {
 		log.Fatalf("Failed to delete: %v", err)
 	}
@@ -53,7 +53,7 @@ func main() {
 	// 4. Retrieve others and compare
 	toCheck := []int{0, 2}
 	for _, idx := range toCheck {
-		res, err := client.Read(ctx, ids[idx])
+		res, err := c.Read(ctx, ids[idx])
 		if err != nil {
 			log.Fatalf("Failed to read %s: %v", items[idx].name, err)
 		}
@@ -66,7 +66,7 @@ func main() {
 	}
 
 	// 5. Verify artifact 2 is gone
-	_, err = client.Read(ctx, ids[1])
+	_, err = c.Read(ctx, ids[1])
 	if err == nil {
 		log.Fatal("Error: Artifact 2 should have been deleted but was found!")
 	}

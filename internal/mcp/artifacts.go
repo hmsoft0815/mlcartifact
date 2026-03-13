@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Michael Lechner. All rights reserved.
 
-// Package handlers provides the Model Context Protocol (MCP) tool implementations
+// Package mcp provides the Model Context Protocol (MCP) tool implementations
 // for the artifact service. These handlers allow LLMs to interact with the
 // artifact store via the MCP framework.
-package handlers
+package mcp
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/internal/storage"
 )
 
 // WriteArtifactArgs defines the input for saving an artifact via MCP.

@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/grpc"
-	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/handlers"
-	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
+	"github.com/hmsoft0815/mlcartifact/internal/grpc"
+	"github.com/hmsoft0815/mlcartifact/internal/mcp"
+	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
@@ -97,8 +97,8 @@ func main() {
 	// Initialize store and set in handlers
 	store := storage.NewStore(*dataDir)
 	slog.Info("initializing artifact store", "dir", *dataDir)
-	handlers.SetStore(store)
-	handlers.SetMCPListLimit(*mcpLimit)
+	mcp.SetStore(store)
+	mcp.SetMCPListLimit(*mcpLimit)
 
 	if *dump {
 		tools := getTools()
@@ -117,13 +117,13 @@ func main() {
 	for _, t := range getTools() {
 		switch t.Name {
 		case "write_artifact":
-			mcpServer.AddTool(t, handlers.WriteArtifact)
+			mcpServer.AddTool(t, mcp.WriteArtifact)
 		case "read_artifact":
-			mcpServer.AddTool(t, handlers.ReadArtifact)
+			mcpServer.AddTool(t, mcp.ReadArtifact)
 		case "list_artifacts":
-			mcpServer.AddTool(t, handlers.ListArtifacts)
+			mcpServer.AddTool(t, mcp.ListArtifacts)
 		case "delete_artifact":
-			mcpServer.AddTool(t, handlers.DeleteArtifact)
+			mcpServer.AddTool(t, mcp.DeleteArtifact)
 		}
 	}
 

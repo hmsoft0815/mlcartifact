@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/grpc"
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/handlers"
@@ -79,7 +80,12 @@ func main() {
 	addr := flag.String("addr", "", "Listen address for SSE (e.g. ':8080'). If empty, uses stdio.")
 	grpcAddr := flag.String("grpc-addr", ":9590", "Listen address for gRPC service")
 	mcpLimit := flag.Int("mcp-list-limit", 100, "Max artifacts to return in MCP list_artifacts")
-	dataDir := flag.String("data-dir", ".artifacts", "Base directory for artifact storage")
+
+	defaultDataDir := ".artifacts"
+	if home, err := os.UserHomeDir(); err == nil {
+		defaultDataDir = filepath.Join(home, "mlcartifact", "storage")
+	}
+	dataDir := flag.String("data-dir", defaultDataDir, "Base directory for artifact storage")
 	flag.Parse()
 
 	if *v {

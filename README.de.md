@@ -200,7 +200,7 @@ Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Fl
 |---|---|---|
 | `-addr` | _(leer)_ | SSE-Adresse. Leer = stdio-Modus. |
 | `-grpc-addr` | `:9590` | gRPC-Adresse für Bibliotheks-Verbindungen |
-| `-data-dir` | `.artifacts` | Speicherverzeichnis |
+| `-data-dir` | `~/mlcartifact/storage` | Speicherverzeichnis |
 | `-mcp-list-limit` | `100` | Max. Einträge bei `list_artifacts` |
 
 **Umgebungsvariablen (Bibliothek):**
@@ -216,7 +216,7 @@ Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Fl
 ## Speicherstruktur
 
 ```
-.artifacts/
+~/mlcartifact/storage/
 ├── global/
 │   ├── {id}_{dateiname}
 │   └── {id}_{dateiname}.json   # Metadaten-Sidecar

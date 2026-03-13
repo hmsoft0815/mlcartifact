@@ -142,6 +142,14 @@ func TestMyTool(t *testing.T) {
 }
 ```
 
+## Versioning
+
+The library version is available as a constant:
+
+```go
+fmt.Println("mlcartifact version:", mlcartifact.Version)
+```
+
 ## Thread Safety
 
 The `mlcartifact.Client` is **thread-safe**. You should typically create one instance and share it across your entire application/server.

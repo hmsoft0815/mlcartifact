@@ -103,6 +103,15 @@ The client automatically picks up these variables:
 - `ARTIFACT_USER_ID`: Default user ID for all operations.
 - `ARTIFACT_SOURCE`: Default source tag for writes.
 
+## Versioning
+
+The library version is exported as a constant:
+
+```typescript
+import { version } from '@hmsoft0815/mlcartifact-client';
+console.log(version);
+```
+
 ## Advanced: Custom Transport
 
 If you need to add custom headers (like Auth tokens) to every request:

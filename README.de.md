@@ -238,6 +238,27 @@ task build-server   # nur den Server bauen
 
 ---
 
+## Beispiele ausführen
+
+Das Repository enthält „Hello World“-Beispiele für alle unterstützten Sprachen. Diese Beispiele demonstrieren den vollständigen Lebenszyklus: 3 Artefakte schreiben, eines löschen und die anderen abrufen/verifizieren.
+
+Um alle Beispiele gleichzeitig auszuführen (erfordert einen laufenden Server):
+```bash
+# 1. Server in einem Terminal starten
+artifact-server -addr :8082 -grpc-addr :9590
+
+# 2. Beispiele in einem anderen Terminal ausführen
+make run-examples
+```
+
+Oder spezifische Beispiele ausführen:
+- `make run-example-go`
+- `make run-example-python`
+- `make run-example-ts`
+- `make run-example-rust`
+
+---
+
 ## Roadmap
 
 - [x] **TypeScript / Node.js SDK**

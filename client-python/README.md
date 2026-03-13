@@ -44,3 +44,13 @@ The client automatically respects the following environment variables:
 | `ARTIFACT_GRPC_ADDR` | `localhost:9590` | The address of the server. |
 | `ARTIFACT_SOURCE` | `""` | Default source tag. |
 | `ARTIFACT_USER_ID` | `""` | Default user ID scoping. |
+
+## Versioning
+
+The library version is available as:
+
+```python
+import mlcartifact
+print(mlcartifact.__version__)
+```
+

@@ -239,6 +239,27 @@ task build-server # server only
 
 ---
 
+## Running Examples
+
+The repository includes "Hello World" examples for all supported languages. These examples demonstrate the full lifecycle: writing 3 artifacts, deleting one, and retrieving/verifying the others.
+
+To run all examples at once (requires a running server):
+```bash
+# 1. Start the server in one terminal
+artifact-server -addr :8082 -grpc-addr :9590
+
+# 2. Run examples in another terminal
+make run-examples
+```
+
+Or run specific examples:
+- `make run-example-go`
+- `make run-example-python`
+- `make run-example-ts`
+- `make run-example-rust`
+
+---
+
 ## Roadmap
 
 - [x] **TypeScript / Node.js SDK**

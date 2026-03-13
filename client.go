@@ -43,6 +43,9 @@ import (
 	"golang.org/x/net/http2"
 )
 
+// Version is the current version of the library.
+const Version = "0.3.0"
+
 // Client is a gRPC/Connect client for the artifact service. It is thread-safe and can
 // be shared across multiple goroutines.
 type Client struct {

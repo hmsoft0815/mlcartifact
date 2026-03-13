@@ -17,6 +17,9 @@ import (
 var version = "dev"
 
 func main() {
+	if version == "dev" {
+		version = mlcartifact.Version
+	}
 	addr := flag.String("addr", os.Getenv("ARTIFACT_GRPC_ADDR"), "Artifact server gRPC address")
 	v := flag.Bool("version", false, "Print version and exit")
 	if *addr == "" {

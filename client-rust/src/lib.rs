@@ -2,6 +2,8 @@ pub mod gen {
     tonic::include_proto!("artifact.v1");
 }
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 use gen::artifact_service_client::ArtifactServiceClient;
 use tonic::transport::Channel;
 

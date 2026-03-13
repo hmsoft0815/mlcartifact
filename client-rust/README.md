@@ -1,10 +1,10 @@
 # mlcartifact Rust SDK
 
-A high-performance Rust client for the `mlcartifact` service using [Tonic](https://github.com/hyperium/tonic).
+A high-performance Rust client for the mlcartifact service using [Tonic](https://github.com/hyperium/tonic).
 
 ## Installation
 
-Add this to your `Cargo.toml`:
+Add this to your Cargo.toml:
 
 ```toml
 [dependencies]

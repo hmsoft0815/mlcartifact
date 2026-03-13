@@ -1,6 +1,6 @@
-# mlcartifact — The Shared Memory Layer for MCP Ecosystems
+# mlcartifact - The Shared Memory Layer for MCP Ecosystems
 
-> **Don't route large data through the LLM.** Let MCP servers write files to a shared store and exchange only an ID. The LLM decides what to do next — without ever seeing the raw data.
+> **Don't route large data through the LLM.** Let MCP servers write files to a shared store and exchange only an ID. The LLM decides what to do next - without ever seeing the raw data.
 
 ![mlcartifact Architecture](docs/how_it_works.png)
 
@@ -9,7 +9,7 @@
 
 Copyright (c) 2026 Michael Lechner. Licensed under the MIT License.
 
-> 🇩🇪 [Deutsche Version](README.de.md)
+> [Deutsche Version](README.de.md)
 
 ---
 
@@ -17,9 +17,9 @@ Copyright (c) 2026 Michael Lechner. Licensed under the MIT License.
 
 Imagine a SQL MCP server that returns 50,000 rows. Or a report generator that produces a 2MB PDF. If these results flow through the LLM's context window, you:
 
-- **Waste tokens** — massively
-- **Hit context limits** — frequently
-- **Slow everything down** — unnecessarily
+- **Waste tokens** - massively
+- **Hit context limits** - frequently
+- **Slow everything down** - unnecessarily
 
 **mlcartifact** is the solution: a shared artifact store. MCP servers write their output directly to it and tell the LLM only: *"Done. Artifact ID: `abc123`. Columns: name, total, date."*
 
@@ -31,21 +31,21 @@ Imagine a SQL MCP server that returns 50,000 rows. Or a report generator that pr
 LLM: "Run the quarterly SQL report and turn it into a PDF."
 
   MCP Server A (SQL)       mlcartifact         MCP Server B (PDF)
-       │                       │                       │
-       │── write_artifact() ──▶│                       │
-       │   report.csv (2MB)    │                       │
-       │◀── artifact ID: abc123│                       │
-       │                       │                       │
-       └── tells LLM: "Done."  │                       │
-                               │                       │
+       |                       |                       |
+       |-- write_artifact() -->|                       |
+       |   report.csv (2MB)    |                       |
+       |<-- artifact ID: abc123|                       |
+       |                       |                       |
+       +-- tells LLM: "Done."  |                       |
+                               |                       |
 LLM: "PDF Server: generate a PDF from artifact abc123."
-                               │                       │
-                               │◀── read_artifact(id) ─│
-                               │    (reads 2MB CSV)    │
-                               │──────────────────────▶│
+                               |                       |
+                               |<-- read_artifact(id) -|
+                               |    (reads 2MB CSV)    |
+                               |---------------------->|
 ```
 
-**The big data never flows through the LLM.** Only artifact IDs are exchanged. The LLM orchestrates — it doesn't carry data.
+**The big data never flows through the LLM.** Only artifact IDs are exchanged. The LLM orchestrates - it doesn't carry data.
 
 ---
 
@@ -79,21 +79,21 @@ Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approac
 |---|---|
 | **`artifact-server`** | MCP + gRPC server. Stores and serves artifacts. Speaks stdio and SSE. |
 | **`artifact-cli`** | Command-line tool to upload, download, list, and delete artifacts. |
-| **Go library** | `import "github.com/hmsoft0815/mlcartifact"` — embed directly in any MCP server. |
-| **TypeScript client** | `npm install @hmsoft0815/mlcartifact-client` — Universal client (Node, Browser, Edge) using Connect RPC. |
-| **Rust SDK** | Available in `client-rust/` — gRPC client using Tonic. |
+| **Go library** | `import "github.com/hmsoft0815/mlcartifact"` - embed directly in any MCP server. |
+| **TypeScript client** | `npm install @hmsoft0815/mlcartifact-client` - Universal client (Node, Browser, Edge) using Connect RPC. |
+| **Rust SDK** | Available in `client-rust/` - gRPC client using Tonic. |
 
 ## Ecosystem & Related Projects
 
-- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** — A "Swiss Army Knife" MCP server that can execute scripts (Python, Bash, etc.) stored as artifacts in `mlcartifact`. It allows for dynamic tool execution where the LLM writes a script to the artifact store and `wollmilchsau` executes it in a secure environment.
+- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - A "Swiss Army Knife" MCP server that can execute scripts (Python, Bash, etc.) stored as artifacts in `mlcartifact`. It allows for dynamic tool execution where the LLM writes a script to the artifact store and `wollmilchsau` executes it in a secure environment.
 
 ---
 
 ## Documentation
 
-- **[Go Client Library Guide](docs/go_library.md)** — Comprehensive guide for Go developers.
-- **[Python Client](client-python/README.md)** — Implementation and usage for Python developers.
-- **[gRPC API Reference](docs/grpc_messaging.md)** — Detailed technical reference for the gRPC protocol.
+- **[Go Client Library Guide](docs/go_library.md)** - Comprehensive guide for Go developers.
+- **[Python Client](client-python/README.md)** - Implementation and usage for Python developers.
+- **[gRPC API Reference](docs/grpc_messaging.md)** - Detailed technical reference for the gRPC protocol.
 
 ---
 
@@ -116,10 +116,10 @@ Pre-built `.deb`, `.rpm`, and binaries on **[GitHub Releases](https://github.com
 
 ```bash
 # stdio mode (for Claude Desktop / MCP)
-artifact-server -data-dir /var/artifacts
+artifact-server -data-dir ~/mlcartifact/storage
 
 # SSE/HTTP mode (for remote MCP servers)
-artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
+artifact-server -addr :8082 -grpc-addr :9590 -data-dir ~/mlcartifact/storage
 ```
 
 ### Use the Go Library in Your MCP Server
@@ -133,7 +133,7 @@ import "github.com/hmsoft0815/mlcartifact"
 client, _ := mlcartifact.NewClient()
 defer client.Close()
 
-// Store a large result — returns an ID, not the data
+// Store a large result - returns an ID, not the data
 resp, _ := client.Write(ctx, "report.csv", csvData,
     mlcartifact.WithMimeType("text/csv"),
     mlcartifact.WithExpiresHours(24),
@@ -175,7 +175,7 @@ Or connect to a running instance via SSE (recommended, but requires to start the
 
 | Tool | Description |
 |---|---|
-| `write_artifact` | Save a file — returns an ID |
+| `write_artifact` | Save a file - returns an ID |
 | `read_artifact` | Retrieve a file by ID or filename |
 | `list_artifacts` | List stored artifacts |
 | `delete_artifact` | Delete permanently |
@@ -264,12 +264,12 @@ Or run specific examples:
 
 - [x] **TypeScript / Node.js SDK**
 - [x] **Python SDK** (httpx + connectrpc)
-- [x] **Docker Image** — pre-configured server
+- [x] **Docker Image** - pre-configured server
 - [x] **Rust SDK** (Tonic based)
-- [ ] **Web Dashboard** — browse & manage artifacts visually
+- [ ] **Web Dashboard** - browse & manage artifacts visually
 
 ---
 
 ## License
 
-MIT License — Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)
+MIT License - Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)

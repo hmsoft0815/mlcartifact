@@ -2,7 +2,7 @@
 
 This document describes the low-level gRPC communication layer of `mlcartifact`. 
 
-> [!TIP]
+> [TIP]
 > **Go Developers:** If you are using our Go library, please refer to the **[Go Client Library Guide](go_library.md)** for a more high-level and user-friendly documentation.
 
 ## Overview

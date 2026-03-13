@@ -1,15 +1,15 @@
-# mlcartifact — Der gemeinsame Speicher für MCP-Ökosysteme
+# mlcartifact - Der gemeinsame Speicher für MCP-Ökosysteme
 
-> **Große Daten gehören nicht in den LLM-Kontext.** Lass MCP-Server Dateien direkt in einen gemeinsamen Speicher schreiben und nur eine ID austauschen. Das LLM orchestriert — ohne die Rohdaten je zu sehen.
+> **Große Daten gehören nicht in den LLM-Kontext.** Lass MCP-Server Dateien direkt in einen gemeinsamen Speicher schreiben und nur eine ID austauschen. Das LLM orchestriert - ohne die Rohdaten je zu sehen.
 
-![mlcartifact Architektur](docs/how_it_works.png)
+![mlcartifact Architecture](docs/how_it_works.png)
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/hmsoft0815/mlcartifact.svg)](https://pkg.go.dev/github.com/hmsoft0815/mlcartifact)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-yellow.svg)](LICENSE)
 
 Copyright (c) 2026 Michael Lechner. Lizenziert unter der MIT-Lizenz.
 
-> 🇬🇧 [English Version](README.md)
+> [English Version](README.md)
 
 ---
 
@@ -17,9 +17,9 @@ Copyright (c) 2026 Michael Lechner. Lizenziert unter der MIT-Lizenz.
 
 Stell dir vor: Ein SQL-MCP-Server liefert 50.000 Zeilen zurück. Oder ein Report-Generator erzeugt ein 2MB-PDF. Fließen diese Ergebnisse durch das Kontext-Fenster des LLMs:
 
-- **Werden Tokens verschwendet** — massiv
-- **Wird das Kontextlimit gesprengt** — häufig
-- **Wird alles langsamer** — unnötig
+- **Werden Tokens verschwendet** - massiv
+- **Wird das Kontextlimit gesprengt** - häufig
+- **Wird alles langsamer** - unnötig
 
 **mlcartifact** ist die Lösung: ein gemeinsamer Artefakt-Speicher. MCP-Server schreiben Ergebnisse direkt hinein und teilen dem LLM nur mit: *„Fertig. Artefakt-ID: `abc123`. Spalten: name, summe, datum."*
 
@@ -31,21 +31,21 @@ Stell dir vor: Ein SQL-MCP-Server liefert 50.000 Zeilen zurück. Oder ein Report
 LLM: "Führe den SQL-Quartalsbericht aus und erzeuge daraus ein PDF."
 
   MCP-Server A (SQL)      mlcartifact         MCP-Server B (PDF)
-       │                       │                       │
-       │── write_artifact() ──▶│                       │
-       │   bericht.csv (2MB)   │                       │
-       │◀── artifact ID: abc123│                       │
-       │                       │                       │
-       └── sagt LLM: "Fertig." │                       │
-                               │                       │
+       |                       |                       |
+       |-- write_artifact() -->|                       |
+       |   bericht.csv (2MB)   |                       |
+       |<-- artifact ID: abc123|                       |
+       |                       |                       |
+       +-- sagt LLM: "Fertig." |                       |
+                               |                       |
 LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
-                               │                       │
-                               │◀── read_artifact(id) ─│
-                               │    (liest 2MB CSV)    │
-                               │──────────────────────▶│
+                               |                       |
+                               |<-- read_artifact(id) -|
+                               |    (liest 2MB CSV)    |
+                               |---------------------->|
 ```
 
-**Die großen Daten fließen nie durch das LLM.** Nur Artefakt-IDs werden ausgetauscht. Das LLM orchestriert — es trägt keine Daten.
+**Die großen Daten fließen nie durch das LLM.** Nur Artefakt-IDs werden ausgetauscht. Das LLM orchestriert - es trägt keine Daten.
 
 ---
 
@@ -79,20 +79,20 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 |---|---|
 | **`artifact-server`** | MCP + gRPC Server. Speichert und liefert Artefakte. Unterstützt stdio und SSE. |
 | **`artifact-cli`** | Kommandozeilen-Tool zum Hochladen, Herunterladen, Auflisten und Löschen. |
-| **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` — direkt in jeden MCP-Server einbettbar. |
-| **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` — Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
-| **Rust SDK** | In `client-rust/` verfügbar — gRPC-Client mittels Tonic. |
+| **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` - direkt in jeden MCP-Server einbettbar. |
+| **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` - Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
+| **Rust SDK** | In `client-rust/` verfügbar - gRPC-Client mittels Tonic. |
 
 ## Ökosystem & Verwandte Projekte
 
-- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** — Ein „Eierlegende-Wollmilchsau“-MCP-Server, der Scripte (Python, Bash, etc.) ausführen kann, die als Artefakte in `mlcartifact` gespeichert sind. Dies ermöglicht dynamische Tool-Ausführung, bei der das LLM ein Script in den Artefakt-Speicher schreibt und `wollmilchsau` es in einer sicheren Umgebung ausführt.
+- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - Ein „Eierlegende-Wollmilchsau“-MCP-Server, der Scripte (Python, Bash, etc.) ausführen kann, die als Artefakte in `mlcartifact` gespeichert sind. Dies ermöglicht dynamische Tool-Ausführung, bei der das LLM ein Script in den Artefakt-Speicher schreibt und `wollmilchsau` es in einer sicheren Umgebung ausführt.
 
 ---
 
 ## Dokumentation
 
-- **[Go-Client-Bibliothek Handbuch](docs/go_library.md)** — Umfassender Guide für Go-Entwickler.
-- **[gRPC-API-Referenz](docs/grpc_messaging.md)** — Detaillierte technische Referenz für das gRPC-Protokoll.
+- **[Go-Client-Bibliothek Handbuch](docs/go_library.md)** - Umfassender Guide für Go-Entwickler.
+- **[gRPC-API-Referenz](docs/grpc_messaging.md)** - Detaillierte technische Referenz für das gRPC-Protokoll.
 
 ---
 
@@ -115,10 +115,10 @@ Vorkompilierte `.deb`, `.rpm` und Binaries unter **[GitHub Releases](https://git
 
 ```bash
 # stdio-Modus (für Claude Desktop / MCP)
-artifact-server -data-dir /var/artifacts
+artifact-server -data-dir ~/mlcartifact/storage
 
 # SSE/HTTP-Modus (für entfernte MCP-Server)
-artifact-server -addr :8082 -grpc-addr :9590 -data-dir /var/artifacts
+artifact-server -addr :8082 -grpc-addr :9590 -data-dir ~/mlcartifact/storage
 ```
 
 ### Go-Bibliothek in deinem MCP-Server nutzen
@@ -132,7 +132,7 @@ import "github.com/hmsoft0815/mlcartifact"
 client, _ := mlcartifact.NewClient()
 defer client.Close()
 
-// Großes Ergebnis speichern — liefert eine ID, keine Daten
+// Großes Ergebnis speichern - liefert eine ID, keine Daten
 resp, _ := client.Write(ctx, "bericht.csv", csvDaten,
     mlcartifact.WithMimeType("text/csv"),
     mlcartifact.WithExpiresHours(24),
@@ -174,7 +174,7 @@ Oder Verbindung zu einem laufenden Server via SSE:
 
 | Tool | Beschreibung |
 |---|---|
-| `write_artifact` | Datei speichern — liefert eine ID |
+| `write_artifact` | Datei speichern - liefert eine ID |
 | `read_artifact` | Datei per ID oder Dateiname abrufen |
 | `list_artifacts` | Gespeicherte Artefakte auflisten |
 | `delete_artifact` | Dauerhaft löschen |
@@ -263,12 +263,12 @@ Oder spezifische Beispiele ausführen:
 
 - [x] **TypeScript / Node.js SDK**
 - [x] **Python SDK** (httpx + connectrpc)
-- [x] **Docker Image** — vorkonfigurierter Server
+- [x] **Docker Image** - vorkonfigurierter Server
 - [x] **Rust SDK** (Tonic-basiert)
-- [ ] **Web Dashboard** — Artefakte im Browser verwalten
+- [ ] **Web Dashboard** - Artefakte im Browser verwalten
 
 ---
 
 ## Lizenz
 
-MIT-Lizenz — Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)
+MIT-Lizenz - Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)

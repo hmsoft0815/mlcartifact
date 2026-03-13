@@ -1,11 +1,11 @@
 # mlcartifact Python Client
 
-A light-weight, firewall-friendly Python client for the `mlcartifact` service using the Connect protocol.
+A light-weight, firewall-friendly Python client for the mlcartifact service using the Connect protocol.
 
 ## Features
 - **Connect Protocol**: Works over standard HTTP/1.1 (no strict HTTP/2 requirement).
-- **Simple API**: Easy-to-use methods for `write`, `read`, `list`, and `delete`.
-- **Environment Aware**: Automatically respects `ARTIFACT_GRPC_ADDR`, `ARTIFACT_SOURCE`, and `ARTIFACT_USER_ID`.
+- **Simple API**: Easy-to-use methods for write, read, list, and delete.
+- **Environment Aware**: Automatically respects ARTIFACT_GRPC_ADDR, ARTIFACT_SOURCE, and ARTIFACT_USER_ID.
 
 ## Installation
 
@@ -13,7 +13,7 @@ A light-weight, firewall-friendly Python client for the `mlcartifact` service us
 pip install .
 ```
 
-Requires `httpx` and `protobuf`.
+Requires httpx and protobuf.
 
 ## Quick Start
 
@@ -41,9 +41,9 @@ The client automatically respects the following environment variables:
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `ARTIFACT_GRPC_ADDR` | `localhost:9590` | The address of the server. |
-| `ARTIFACT_SOURCE` | `""` | Default source tag. |
-| `ARTIFACT_USER_ID` | `""` | Default user ID scoping. |
+| ARTIFACT_GRPC_ADDR | localhost:9590 | The address of the server. |
+| ARTIFACT_SOURCE | "" | Default source tag. |
+| ARTIFACT_USER_ID | "" | Default user ID scoping. |
 
 ## Versioning
 
@@ -54,3 +54,6 @@ import mlcartifact
 print(mlcartifact.__version__)
 ```
 
+## License
+
+MIT - Copyright (c) 2026 Michael Lechner

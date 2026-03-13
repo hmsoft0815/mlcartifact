@@ -24,21 +24,21 @@ In complex agentic workflows, LLMs often face three critical limitations that th
 
 ## Tools for LLMs
 
-### 📝 `write_artifact`
+### [Write] write_artifact
 Saves content (text or binary data) to the storage.
 - `filename`: Desired filename (e.g., `analysis_report.md`).
 - `content`: The payload to store.
 - `description`: Optional UTF-8 description of the artifact.
 - `expires_in_hours`: Optional expiration (default: 24).
 
-### 📖 `read_artifact`
+### [Read] read_artifact
 Retrieves stored content.
 - `id`: Unique artifact ID or filename.
 
-### 📋 `list_artifacts`
+### [List] list_artifacts
 Returns an overview of all active artifacts, including sizes and expiration dates.
 
-### 🗑️ `delete_artifact`
+### [Delete] delete_artifact
 Manual removal of a specific asset.
 
 ---

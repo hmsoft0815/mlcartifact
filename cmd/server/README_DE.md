@@ -24,21 +24,21 @@ In komplexen agentenbasierten Workflows stoßen LLMs oft an drei kritische Grenz
 
 ## Tools für LLMs
 
-### 📝 `write_artifact`
+### [Write] write_artifact
 Speichert Inhalte (Text oder binäre Daten) im Speicher ab.
 - `filename`: Gewünschter Dateiname (z. B. `analyse_bericht.md`).
 - `content`: Die zu speichernden Daten.
 - `description`: Optionale UTF-8 Beschreibung des Artefakts.
 - `expires_in_hours`: Optionales Ablaufdatum in Stunden (Standard: 24).
 
-### 📖 `read_artifact`
+### [Read] read_artifact
 Ruft gespeicherte Inhalte ab.
 - `id`: Eindeutige Artefakt-ID oder Dateiname.
 
-### 📋 `list_artifacts`
+### [List] list_artifacts
 Gibt eine Übersicht aller aktiven Artefakte zurück, inklusive Größen und Ablaufdaten.
 
-### 🗑️ `delete_artifact`
+### [Delete] delete_artifact
 Manuelles Löschen eines spezifischen Assets.
 
 ---
@@ -57,7 +57,7 @@ console.log(`Diagramm gespeichert! Zugriff über URI: ${res.uri}`);
 
 ## Interne Architektur
 
-Der Server ist in **Go** geschrieben und nutzt `log/slog` für professionelles Monitoring. Er unterstützt mehrere Protokolle:
+Der Server ist in **Go** geschrieben und nutzt `log/slog` for professionelles Monitoring. Er unterstützt mehrere Protokolle:
 - **stdio:** Standard-MCP-Modus.
 - **SSE (HTTP):** Für Remote- oder Web-Integration.
 - **gRPC:** Binärer Hochleistungs-Transport für interne Clients. Siehe **[gRPC-Messaging & Go-Bibliothek](../../docs/grpc_messaging.md)**.

@@ -1,19 +1,19 @@
 # @hmsoft0815/mlcartifact-client
 
-Ein universeller, sauberer und vollständig typisierter TypeScript-Client für den `mlcartifact` Dienst.
+Ein universeller, sauberer und vollständig typisierter TypeScript-Client für den mlcartifact Dienst.
 
 ## Übersicht
 
-Der `mlcartifact`-Dienst bietet ein gemeinsames Speicher-Backend für KI-Agenten und Tools. Mit diesem TypeScript-Client können Sie problemlos in jeder Umgebung (Browser, Node.js, Deno, Bun oder Edge-Funktionen) mit dem Dienst interagieren.
+Der mlcartifact-Dienst bietet ein gemeinsames Speicher-Backend für KI-Agenten und Tools. Mit diesem TypeScript-Client können Sie problemlos in jeder Umgebung (Browser, Node.js, Deno, Bun oder Edge-Funktionen) mit dem Dienst interagieren.
 
 Er verwendet das [Connect](https://connectrpc.com/)-Protokoll, eine schlanke, typsichere Alternative zu traditionellem gRPC, die nahtlos über Standard-HTTP/1.1 oder HTTP/2 funktioniert.
 
-## Funktionen
+## Features
 
-- **🚀 Universell:** Funktioniert überall dort, wo `fetch` verfügbar ist.
-- **🛡️ Vollständig typisiert:** Alle Anfragen und Antworten sind über Protobuf streng typisiert.
-- **🪶 Leichtgewichtig:** Minimale Abhängigkeiten, optimiert für moderne Umgebungen.
-- **🔌 Connect-Protokoll:** Web-freundlich, keine komplexen gRPC-Web-Proxys erforderlich.
+- **Universell:** Funktioniert überall dort, wo fetch verfügbar ist.
+- **Vollständig typisiert:** Alle Anfragen und Antworten sind über Protobuf streng typisiert.
+- **Leichtgewichtig:** Minimale Abhängigkeiten, optimiert für moderne Umgebungen.
+- **Connect-Protokoll:** Web-freundlich, keine komplexen gRPC-Web-Proxys erforderlich.
 
 ## Installation
 
@@ -26,13 +26,13 @@ npm install @hmsoft0815/mlcartifact-client
 ```typescript
 import { ArtifactClient } from '@hmsoft0815/mlcartifact-client';
 
-async function beispiel() {
+async function example() {
   // baseUrl verwendet standardmäßig ARTIFACT_GRPC_ADDR oder 'http://localhost:9590'
   const client = new ArtifactClient();
 
   // 1. Artefakt schreiben
   // Unterstützt String, Uint8Array oder Blob
-  const writeResp = await client.write('hallo.md', '# Hallo Welt', {
+  const writeResp = await client.write('hello.md', '# Hello World', {
     description: 'Mein erstes Artefakt',
     mimeType: 'text/markdown',
     expiresHours: 48,
@@ -66,44 +66,44 @@ async function beispiel() {
 
 ## API-Referenz
 
-### `new ArtifactClient(baseUrl?: string, transport?: Transport)`
+### new ArtifactClient(baseUrl?: string, transport?: Transport)
 
 Erstellt einen neuen Client.
-- `baseUrl`: Die URL des Artefakt-Servers. Standardmäßig `process.env.ARTIFACT_GRPC_ADDR` oder `http://localhost:9590`.
-- `transport`: Optionaler benutzerdefinierter Connect-Transport.
+- baseUrl: Die URL des Artefakt-Servers. Standardmäßig process.env.ARTIFACT_GRPC_ADDR oder http://localhost:9590.
+- transport: Optionaler benutzerdefinierter Connect-Transport.
 
-### `write(filename: string, content: string | Uint8Array, options?: WriteOptions)`
+### write(filename: string, content: string | Uint8Array, options?: WriteOptions)
 
 Speichert ein Artefakt im Speicher.
-- `options.userId`: Beschränkt das Artefakt auf einen bestimmten Benutzer.
-- `options.expiresHours`: Anzahl der Stunden bis zur automatischen Löschung (Standard: 24).
-- `options.mimeType`: Explizite Angabe des MIME-Typs.
-- `options.source`: Identifiziert den Ersteller des Artefakts.
+- options.userId: Beschränkt das Artefakt auf einen bestimmten Benutzer.
+- options.expiresHours: Anzahl der Stunden bis zur automatischen Löschung (Standard: 24).
+- options.mimeType: Explizite Angabe des MIME-Typs.
+- options.source: Identifiziert den Ersteller des Artefakts.
 
-### `read(idOrFilename: string, options?: ReadOptions)`
+### read(idOrFilename: string, options?: ReadOptions)
 
 Ruft ein Artefakt anhand der ID oder des ursprünglichen Dateinamens ab.
 
-### `list(options?: ListOptions)`
+### list(options?: ListOptions)
 
 Gibt eine Liste von Artefakten zurück.
-- `options.limit`: Maximale Anzahl an Elementen.
-- `options.offset`: Offset für die Paginierung.
-- `options.userId`: Filter nach Benutzer.
+- options.limit: Maximale Anzahl an Einträgen.
+- options.offset: Offset für die Paginierung.
+- options.userId: Filter nach Benutzer.
 
-### `delete(idOrFilename: string, options?: DeleteOptions)`
+### delete(idOrFilename: string, options?: DeleteOptions)
 
-Entfernt ein Artefakt dauerhaft.
+Löscht ein Artefakt dauerhaft.
 
 ## Umgebungsvariablen (Node.js)
 
-Der Client erkennt diese Variablen automatisch:
+Der Client erkennt automatisch diese Variablen:
 
-- `ARTIFACT_GRPC_ADDR`: Server-URL (z. B. `https://api.artifacts.local`).
-- `ARTIFACT_USER_ID`: Standard-Benutzer-ID für alle Operationen.
-- `ARTIFACT_SOURCE`: Standard-Quell-Tag für Schreibvorgänge.
+- ARTIFACT_GRPC_ADDR: Server-URL (z. B. https://api.artifacts.local).
+- ARTIFACT_USER_ID: Standard-Benutzer-ID für alle Operationen.
+- ARTIFACT_SOURCE: Standard-Quell-Tag für Schreibvorgänge.
 
-## Fortgeschritten: Benutzerdefinierter Transport
+## Fortgeschritten: Eigener Transport
 
 Falls Sie benutzerdefinierte Header (wie Authentifizierungs-Token) zu jeder Anfrage hinzufügen müssen:
 

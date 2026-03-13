@@ -1,19 +1,19 @@
 # @hmsoft0815/mlcartifact-client
 
-A universal, clean, and fully typed TypeScript client for the `mlcartifact` service.
+A universal, clean, and fully typed TypeScript client for the mlcartifact service.
 
 ## Overview
 
-The `mlcartifact` service provides a shared storage backend for AI agents and tools. This TypeScript client allows you to easily interact with the service from any environment (Browser, Node.js, Deno, Bun, or Edge functions).
+The mlcartifact service provides a shared storage backend for AI agents and tools. This TypeScript client allows you to easily interact with the service from any environment (Browser, Node.js, Deno, Bun, or Edge functions).
 
 It uses the [Connect](https://connectrpc.com/) protocol, which is a slim, type-safe alternative to traditional gRPC that works seamlessly over standard HTTP/1.1 or HTTP/2.
 
 ## Features
 
-- **🚀 Universal:** Works everywhere `fetch` is available.
-- **🛡️ Fully Typed:** All requests and responses are strongly typed via Protobuf.
-- **🪶 Lightweight:** Minimal dependencies, optimized for modern environments.
-- **🔌 Connect Protocol:** Web-friendly, no need for complex gRPC-web proxies.
+- **Universal:** Works everywhere fetch is available.
+- **Fully Typed:** All requests and responses are strongly typed via Protobuf.
+- **Lightweight:** Minimal dependencies, optimized for modern environments.
+- **Connect Protocol:** Web-friendly, no need for complex gRPC-web proxies.
 
 ## Installation
 
@@ -66,32 +66,32 @@ async function example() {
 
 ## API Reference
 
-### `new ArtifactClient(baseUrl?: string, transport?: Transport)`
+### new ArtifactClient(baseUrl?: string, transport?: Transport)
 
 Creates a new client.
-- `baseUrl`: The URL of the artifact server. Defaults to `process.env.ARTIFACT_GRPC_ADDR` or `http://localhost:9590`.
-- `transport`: Optional custom Connect transport.
+- baseUrl: The URL of the artifact server. Defaults to process.env.ARTIFACT_GRPC_ADDR or http://localhost:9590.
+- transport: Optional custom Connect transport.
 
-### `write(filename: string, content: string | Uint8Array, options?: WriteOptions)`
+### write(filename: string, content: string | Uint8Array, options?: WriteOptions)
 
 Saves an artifact to the store.
-- `options.userId`: Scope the artifact to a specific user.
-- `options.expiresHours`: Number of hours until deletion (default: 24).
-- `options.mimeType`: Explicitly set MIME type.
-- `options.source`: Identify the creator of the artifact.
+- options.userId: Scope the artifact to a specific user.
+- options.expiresHours: Number of hours until deletion (default: 24).
+- options.mimeType: Explicitly set MIME type.
+- options.source: Identify the creator of the artifact.
 
-### `read(idOrFilename: string, options?: ReadOptions)`
+### read(idOrFilename: string, options?: ReadOptions)
 
 Retrieves an artifact by ID or original filename.
 
-### `list(options?: ListOptions)`
+### list(options?: ListOptions)
 
 Returns a list of artifacts.
-- `options.limit`: Max items to return.
-- `options.offset`: Pagination offset.
-- `options.userId`: Filter by user.
+- options.limit: Max items to return.
+- options.offset: Pagination offset.
+- options.userId: Filter by user.
 
-### `delete(idOrFilename: string, options?: DeleteOptions)`
+### delete(idOrFilename: string, options?: DeleteOptions)
 
 Permanently removes an artifact.
 
@@ -99,9 +99,9 @@ Permanently removes an artifact.
 
 The client automatically picks up these variables:
 
-- `ARTIFACT_GRPC_ADDR`: Server URL (e.g., `https://api.artifacts.local`).
-- `ARTIFACT_USER_ID`: Default user ID for all operations.
-- `ARTIFACT_SOURCE`: Default source tag for writes.
+- ARTIFACT_GRPC_ADDR: Server URL (e.g., https://api.artifacts.local).
+- ARTIFACT_USER_ID: Default user ID for all operations.
+- ARTIFACT_SOURCE: Default source tag for writes.
 
 ## Versioning
 

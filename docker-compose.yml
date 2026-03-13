@@ -1,0 +1,12 @@
+services:
+  mlcartifact:
+    build: .
+    ports:
+      - "8080:8080"
+      - "9590:9590"
+    volumes:
+      - artifacts-data:/app/data
+    restart: always
+
+volumes:
+  artifacts-data:

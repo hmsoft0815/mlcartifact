@@ -228,7 +228,7 @@ task build-server   # nur den Server bauen
 
 - [x] **TypeScript / Node.js SDK**
 - [x] **Python SDK** (httpx + connectrpc)
-- [ ] **Docker Image** — vorkonfigurierter Server
+- [x] **Docker Image** — vorkonfigurierter Server
 - [ ] **Web Dashboard** — Artefakte im Browser verwalten
 
 ---

@@ -1,0 +1,19 @@
+# Local development files
+.git/
+.task/
+.artifacts/
+bin/
+build/
+coverage.out
+coverage.html
+
+# Language-specific artifacts
+node_modules/
+dist/
+__pycache__/
+*.test
+*.exe
+
+# Configuration
+.env
+.github/

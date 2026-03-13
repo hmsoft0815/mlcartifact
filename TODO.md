@@ -2,7 +2,7 @@
 
 - [x] **TypeScript SDK** (Connect-RPC, universal)
 - [x] **Python SDK** (httpx + connectrpc)
-- [ ] **Docker Image** (Alpine-based, small)
+- [x] **Docker Image** (Alpine-based, small)
 - [ ] **Web Dashboard** (Browse & Delete artifacts)
 - [ ] **Rust SDK**
 - [ ] **C / C++ SDK** (gRPC based)

@@ -69,6 +69,10 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 | **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact"` — direkt in jeden MCP-Server einbettbar. |
 | **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` — Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
 
+## Ökosystem & Verwandte Projekte
+
+- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** — Ein „Eierlegende-Wollmilchsau“-MCP-Server, der Scripte (Python, Bash, etc.) ausführen kann, die als Artefakte in `mlcartifact` gespeichert sind. Dies ermöglicht dynamische Tool-Ausführung, bei der das LLM ein Script in den Artefakt-Speicher schreibt und `wollmilchsau` es in einer sicheren Umgebung ausführt.
+
 ---
 
 ## Dokumentation
@@ -222,8 +226,8 @@ task build-server   # nur den Server bauen
 
 ## Roadmap
 
-- [ ] **TypeScript / Node.js SDK**
-- [ ] **Python SDK** (LangChain, AutoGen)
+- [x] **TypeScript / Node.js SDK**
+- [x] **Python SDK** (httpx + connectrpc)
 - [ ] **Docker Image** — vorkonfigurierter Server
 - [ ] **Web Dashboard** — Artefakte im Browser verwalten
 

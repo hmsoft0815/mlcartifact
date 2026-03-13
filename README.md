@@ -69,6 +69,10 @@ Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approac
 | **Go library** | `import "github.com/hmsoft0815/mlcartifact"` — embed directly in any MCP server. |
 | **TypeScript client** | `npm install @hmsoft0815/mlcartifact-client` — Universal client (Node, Browser, Edge) using Connect RPC. |
 
+## Ecosystem & Related Projects
+
+- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** — A "Swiss Army Knife" MCP server that can execute scripts (Python, Bash, etc.) stored as artifacts in `mlcartifact`. It allows for dynamic tool execution where the LLM writes a script to the artifact store and `wollmilchsau` executes it in a secure environment.
+
 ---
 
 ## Documentation
@@ -224,7 +228,7 @@ task build-server # server only
 ## Roadmap
 
 - [x] **TypeScript / Node.js SDK**
-- [ ] **Python SDK** (LangChain, AutoGen)
+- [x] **Python SDK** (httpx + connectrpc)
 - [ ] **Docker Image** — pre-configured server
 - [ ] **Web Dashboard** — browse & manage artifacts visually
 

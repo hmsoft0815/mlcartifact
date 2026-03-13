@@ -7,10 +7,12 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/hmsoft0815/mlcartifact/cmd/server/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 )
@@ -44,12 +46,12 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 		int(req.ExpiresHours),
 		req.Source,
 		req.UserId,
-		"", // description (to be added to proto later if needed, for now from MCP)
+		req.Description,
 		metadata,
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to write artifact: %w", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to write artifact: %w", err))
 	}
 
 	return &pb.WriteResponse{
@@ -66,7 +68,10 @@ func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 
 	content, meta, err := s.Store.Read(req.Id, req.UserId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read artifact: %w", err)
+		if err.Error() == "artifact not found" {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to read artifact: %w", err))
 	}
 
 	return &pb.ReadResponse{
@@ -81,7 +86,10 @@ func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteR
 	slog.Info("gRPC Delete request", "id", req.Id, "user_id", req.UserId)
 	deleted, err := s.Store.Delete(req.Id, req.UserId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete artifact: %w", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to delete artifact: %w", err))
+	}
+	if !deleted {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
 	}
 	return &pb.DeleteResponse{Deleted: deleted}, nil
 }
@@ -91,7 +99,7 @@ func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespons
 	slog.Info("gRPC List request", "user_id", req.UserId, "limit", req.Limit, "offset", req.Offset)
 	items, err := s.Store.List(req.UserId, int(req.Limit), int(req.Offset))
 	if err != nil {
-		return nil, fmt.Errorf("failed to list artifacts: %w", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list artifacts: %w", err))
 	}
 
 	var pbItems []*pb.ArtifactInfo

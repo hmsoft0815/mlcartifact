@@ -8,7 +8,8 @@
   "scripts": {
     "generate": "mkdir -p src/gen && protoc -I ../proto --es_out src/gen --es_opt target=ts --connect-es_out src/gen --connect-es_opt target=ts ../proto/artifact.proto",
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "example": "node --import tsx examples/example.ts"
   },
   "keywords": [
     "mcp",
@@ -28,6 +29,7 @@
     "@bufbuild/protoc-gen-es": "^1.10.0",
     "@connectrpc/protoc-gen-connect-es": "^1.6.1",
     "@types/node": "^20.11.24",
+    "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "vitest": "^4.0.18"
   }

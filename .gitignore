@@ -14,10 +14,13 @@ go.work.sum
 # Logs & tmp
 *.log
 .artifacts/
+.artifacts_*/
+artifact-server
 
 # TypeScript client
 client-ts/node_modules/
 client-ts/dist/
 client-ts/src/gen/
+client-ts/examples/node_modules/
 .task/
 client-rust/target/

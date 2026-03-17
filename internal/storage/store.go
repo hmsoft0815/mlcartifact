@@ -216,7 +216,8 @@ func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata,
 	if strings.HasPrefix(idOrPath, "/") {
 		s.mu.RLock()
 		if userIdx, ok := s.index[uID]; ok {
-			if id, exists := userIdx[NormalizePath(idOrPath)]; exists {
+			p := NormalizePath(idOrPath)
+			if id, exists := userIdx[p]; exists {
 				lookupID = id
 			}
 		}
@@ -235,9 +236,42 @@ func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata,
 	}
 
 	for _, f := range files {
-		// Matches if ID is prefix OR filename is suffix (following the ID_ separator)
-		isMatch := strings.HasPrefix(f.Name(), lookupID) || strings.HasSuffix(f.Name(), "_"+lookupID)
-		if !f.IsDir() && isMatch && !strings.HasSuffix(f.Name(), ".json") {
+		// CRITICAL: We must NOT match the metadata file here when looking for content.
+		// Artifact files are named {id}_{filename}.
+		// Metadata files are named {id}_{filename}.json.
+		if f.IsDir() || strings.HasSuffix(f.Name(), ".json.json") {
+			continue
+		}
+		// Special case: if filename itself ends in .json, the artifact is {id}_file.json
+		// and metadata is {id}_file.json.json.
+		// So we only skip if it's the metadata file.
+		
+		// If it's a metadata file, it always has .json added to the full storage name
+		// We can check if a file without the .json suffix exists to be sure,
+		// but a simpler way is to check the suffix ".json" AND ensure it's not the artifact itself.
+		
+		// Let's use a more robust way: metadata files ALWAYS end in .json
+		// Artifact files might end in .json too.
+		// But metadata files are ALWAYS artifactName + ".json"
+		
+		// Revised logic:
+		if strings.HasSuffix(f.Name(), ".json") {
+			// Check if this is a metadata file by looking for the artifact file
+			artifactName := strings.TrimSuffix(f.Name(), ".json")
+			if _, err := os.Stat(filepath.Join(prefixDir, artifactName)); err == nil {
+				// Artifact file exists, so THIS file is definitely metadata
+				continue
+			}
+		}
+
+		// Storage format is: {id}_{filename}
+		parts := strings.SplitN(f.Name(), "_", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		isMatch := (parts[0] == lookupID) || (parts[1] == lookupID)
+		if isMatch {
 			fullPath := filepath.Join(prefixDir, f.Name())
 			metaPath := fullPath + ".json"
 
@@ -464,8 +498,17 @@ func (s *Store) Patch(idOrPath string, userID string, patchContent []byte, lineS
 		// Construct new lines
 		resultLines := append([]string{}, lines[:lineStart]...)
 		resultLines = append(resultLines, patchLines...)
-		resultLines = append(resultLines, lines[lineEnd:]...)
-		newContent = []byte(strings.Join(resultLines, "\n"))
+		if lineEnd < len(lines) {
+			resultLines = append(resultLines, lines[lineEnd:]...)
+		}
+		
+		// Remove empty trailing string if initial file was empty and we added content
+		if len(lines) == 1 && lines[0] == "" && len(patchLines) > 0 {
+			// This is a special case for patching empty files
+			newContent = patchContent
+		} else {
+			newContent = []byte(strings.Join(resultLines, "\n"))
+		}
 	}
 
 	// Overwrite existing file
@@ -520,8 +563,23 @@ func (s *Store) Delete(idOrPath string, userID string) (bool, error) {
 	}
 
 	for _, f := range files {
-		isMatch := strings.HasPrefix(f.Name(), lookupID) || strings.HasSuffix(f.Name(), "_"+lookupID)
-		if !f.IsDir() && isMatch && !strings.HasSuffix(f.Name(), ".json") {
+		if f.IsDir() || strings.HasSuffix(f.Name(), ".json.json") {
+			continue
+		}
+		if strings.HasSuffix(f.Name(), ".json") {
+			artifactName := strings.TrimSuffix(f.Name(), ".json")
+			if _, err := os.Stat(filepath.Join(prefixDir, artifactName)); err == nil {
+				continue
+			}
+		}
+
+		parts := strings.SplitN(f.Name(), "_", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		isMatch := (parts[0] == lookupID) || (parts[1] == lookupID)
+		if isMatch {
 			fullPath := filepath.Join(prefixDir, f.Name())
 			metaPath := fullPath + ".json"
 

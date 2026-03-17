@@ -29,6 +29,7 @@ tasks:
       - cmd/artifact-server/**/*.go
       - "*.go"
       - proto/**/*.go
+      - internal/**/*.go
     generates:
       - "{{.SERVER_BIN}}"
 
@@ -38,7 +39,8 @@ tasks:
       - mkdir -p ./bin
       - go build -ldflags "-X main.version={{.VERSION}}" -o {{.CLI_BIN}} ./cmd/artifact-cli
     sources:
-      - cmd/cli/**/*.go
+      - cmd/artifact-cli/**/*.go
+      - client/**/*.go
     generates:
       - "{{.CLI_BIN}}"
 

@@ -24,9 +24,9 @@ tasks:
     desc: Build the artifact-server binary
     cmds:
       - mkdir -p ./bin
-      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.SERVER_BIN}} ./cmd/server
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.SERVER_BIN}} ./cmd/artifact-server
     sources:
-      - cmd/server/**/*.go
+      - cmd/artifact-server/**/*.go
       - "*.go"
       - proto/**/*.go
     generates:
@@ -36,7 +36,7 @@ tasks:
     desc: Build the artifact-cli binary
     cmds:
       - mkdir -p ./bin
-      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.CLI_BIN}} ./cmd/cli/cmd/artifact-cli
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.CLI_BIN}} ./cmd/artifact-cli
     sources:
       - cmd/cli/**/*.go
     generates:
@@ -78,12 +78,12 @@ tasks:
   run-server:
     desc: Run artifact-server in stdio mode (for development)
     cmds:
-      - go run ./cmd/server
+      - go run ./cmd/artifact-server
 
   run-server-sse:
     desc: Run artifact-server in SSE mode on :8082
     cmds:
-      - go run ./cmd/server -addr :8082 -grpc-addr :9590
+      - go run ./cmd/artifact-server -addr :8082 -grpc-addr :9590
 
   proto:
     desc: Regenerate protobuf files (requires protoc + gen plugins)

@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -29,6 +31,7 @@ func utf8Valid(s string) bool {
 type ArtifactMetadata struct {
 	ID          string                 `json:"id"`          // Unique short ID generated at write time
 	Filename    string                 `json:"filename"`    // Original filename provided by the client
+	VirtualPath string                 `json:"virtual_path,omitempty"` // Hierarchical path (VFS)
 	MimeType    string                 `json:"mime_type"`   // Detected or provided MIME type
 	Description string                 `json:"description,omitempty"`
 	Source      string                 `json:"source,omitempty"`
@@ -41,11 +44,66 @@ type ArtifactMetadata struct {
 // Store handles the persistence of artifacts on the local filesystem.
 type Store struct {
 	BaseDir string // Root directory where all artifacts and users are stored
+	mu      sync.RWMutex
+	// Index map[userID]map[virtualPath]artifactID
+	index map[string]map[string]string
 }
 
-// NewStore initializes a new Store with the given base directory.
+// NewStore initializes a new Store with the given base directory and rebuilds the index.
 func NewStore(baseDir string) *Store {
-	return &Store{BaseDir: baseDir}
+	s := &Store{
+		BaseDir: baseDir,
+		index:   make(map[string]map[string]string),
+	}
+	s.rebuildIndex()
+	return s
+}
+
+// rebuildIndex scans the BaseDir and populates the in-memory VFS index.
+func (s *Store) rebuildIndex() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Clear existing index
+	s.index = make(map[string]map[string]string)
+
+	_ = filepath.Walk(s.BaseDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".json") {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		var meta ArtifactMetadata
+		if err := json.Unmarshal(data, &meta); err == nil {
+			if meta.VirtualPath != "" {
+				uID := meta.UserID
+				if uID == "" {
+					uID = "global"
+				}
+				if s.index[uID] == nil {
+					s.index[uID] = make(map[string]string)
+				}
+				s.index[uID][meta.VirtualPath] = meta.ID
+			}
+		}
+		return nil
+	})
+}
+
+// NormalizePath ensures a path starts with / and is cleaned.
+func NormalizePath(p string) string {
+	if p == "" || p == "/" {
+		return "/"
+	}
+	cleaned := filepath.ToSlash(filepath.Clean(p))
+	if !strings.HasPrefix(cleaned, "/") {
+		cleaned = "/" + cleaned
+	}
+	return cleaned
 }
 
 // Write saves content and its metadata to the store.
@@ -56,7 +114,8 @@ func NewStore(baseDir string) *Store {
 // 3. Generates a unique ID (based on timestamp and random bytes).
 // 4. Detects the MIME type if not provided.
 // 5. Writes the binary content and the JSON metadata to disk.
-func (s *Store) Write(filename string, content []byte, mimeType string, expiresHours int, source string, userID string, description string, metadata map[string]interface{}) (*ArtifactMetadata, error) {
+// 6. Updates the in-memory VFS index.
+func (s *Store) Write(filename string, content []byte, mimeType string, expiresHours int, source string, userID string, description string, metadata map[string]interface{}, virtualPath string) (*ArtifactMetadata, error) {
 	// 1. Validates input (UTF-8 checks).
 	if description != "" && !utf8Valid(description) {
 		return nil, fmt.Errorf("description contains invalid UTF-8 characters")
@@ -103,9 +162,15 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 	}
 
 	// 7. Write metadata
+	vPath := NormalizePath(virtualPath)
+	if virtualPath == "" {
+		vPath = "" // Don't index empty paths
+	}
+
 	meta := &ArtifactMetadata{
 		ID:          id,
 		Filename:    safeFilename,
+		VirtualPath: vPath,
 		MimeType:    mimeType,
 		Description: description,
 		Source:      source,
@@ -120,12 +185,44 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 		return nil, fmt.Errorf("failed to write metadata: %w", err)
 	}
 
+	// 8. Update index
+	if vPath != "" {
+		s.mu.Lock()
+		uID := userID
+		if uID == "" {
+			uID = "global"
+		}
+		if s.index[uID] == nil {
+			s.index[uID] = make(map[string]string)
+		}
+		s.index[uID][vPath] = id
+		s.mu.Unlock()
+	}
+
 	return meta, nil
 }
 
-// Read retrieves content and metadata for a given ID or filename.
+// Read retrieves content and metadata for a given ID, filename, or virtual path.
 // If multiple files match a filename, the newest one (highest ID prefix) is returned.
-func (s *Store) Read(idOrFilename string, userID string) ([]byte, *ArtifactMetadata, error) {
+func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata, error) {
+	uID := userID
+	if uID == "" {
+		uID = "global"
+	}
+
+	lookupID := idOrPath
+
+	// 1. Try VFS index if it looks like a path
+	if strings.HasPrefix(idOrPath, "/") {
+		s.mu.RLock()
+		if userIdx, ok := s.index[uID]; ok {
+			if id, exists := userIdx[NormalizePath(idOrPath)]; exists {
+				lookupID = id
+			}
+		}
+		s.mu.RUnlock()
+	}
+
 	prefixDir := filepath.Join(s.BaseDir, "global")
 	if userID != "" {
 		prefixDir = filepath.Join(s.BaseDir, "users", userID)
@@ -139,7 +236,7 @@ func (s *Store) Read(idOrFilename string, userID string) ([]byte, *ArtifactMetad
 
 	for _, f := range files {
 		// Matches if ID is prefix OR filename is suffix (following the ID_ separator)
-		isMatch := strings.HasPrefix(f.Name(), idOrFilename) || strings.HasSuffix(f.Name(), "_"+idOrFilename)
+		isMatch := strings.HasPrefix(f.Name(), lookupID) || strings.HasSuffix(f.Name(), "_"+lookupID)
 		if !f.IsDir() && isMatch && !strings.HasSuffix(f.Name(), ".json") {
 			fullPath := filepath.Join(prefixDir, f.Name())
 			metaPath := fullPath + ".json"
@@ -166,9 +263,14 @@ func (s *Store) Read(idOrFilename string, userID string) ([]byte, *ArtifactMetad
 	return nil, nil, fmt.Errorf("artifact not found")
 }
 
-// List returns all artifacts for a specific user (or the global store if userID is empty).
-// Results are paginated via limit and offset.
-func (s *Store) List(userID string, limit, offset int) ([]*ArtifactMetadata, error) {
+// List returns artifacts for a specific user.
+// If dirPath is empty, it returns a flat list of all artifacts.
+// If dirPath is set, it returns items (files and virtual folders) in that virtual directory.
+func (s *Store) List(userID string, limit, offset int, dirPath string) ([]*ArtifactMetadata, error) {
+	if dirPath != "" {
+		return s.ListVFS(userID, dirPath, limit, offset)
+	}
+
 	prefixDir := filepath.Join(s.BaseDir, "global")
 	if userID != "" {
 		prefixDir = filepath.Join(s.BaseDir, "users", userID)
@@ -212,9 +314,201 @@ func (s *Store) List(userID string, limit, offset int) ([]*ArtifactMetadata, err
 	return results[offset:end], nil
 }
 
+// ListVFS handles hierarchical directory listing using the in-memory index.
+func (s *Store) ListVFS(userID string, dirPath string, limit, offset int) ([]*ArtifactMetadata, error) {
+	uID := userID
+	if uID == "" {
+		uID = "global"
+	}
+
+	dir := NormalizePath(dirPath)
+	if !strings.HasSuffix(dir, "/") {
+		dir += "/"
+	}
+
+	s.mu.RLock()
+	userIdx, ok := s.index[uID]
+	if !ok {
+		s.mu.RUnlock()
+		return []*ArtifactMetadata{}, nil
+	}
+
+	// 1. Find all artifacts starting with dir
+	// 2. Identify direct children (files) and sub-directories
+	folders := make(map[string]bool)
+	var fileIDs []string
+
+	for path, id := range userIdx {
+		if strings.HasPrefix(path, dir) {
+			sub := strings.TrimPrefix(path, dir)
+			if sub == "" {
+				continue
+			}
+			parts := strings.Split(sub, "/")
+			if len(parts) == 1 {
+				// Direct file
+				fileIDs = append(fileIDs, id)
+			} else {
+				// Sub-directory
+				folders[parts[0]] = true
+			}
+		}
+	}
+	s.mu.RUnlock()
+
+	var results []*ArtifactMetadata
+
+	// Sort folders for deterministic results
+	folderNames := make([]string, 0, len(folders))
+	for f := range folders {
+		folderNames = append(folderNames, f)
+	}
+	sort.Strings(folderNames)
+
+	for _, folder := range folderNames {
+		results = append(results, &ArtifactMetadata{
+			VirtualPath: dir + folder,
+			Filename:    folder,
+			MimeType:    "directory",
+			Description: "Virtual Directory",
+		})
+	}
+
+	// Add files
+	for _, id := range fileIDs {
+		_, meta, err := s.Read(id, userID)
+		if err == nil {
+			results = append(results, meta)
+		}
+	}
+
+	// Pagination
+	if offset > len(results) {
+		return []*ArtifactMetadata{}, nil
+	}
+	end := len(results)
+	if limit > 0 {
+		end = offset + limit
+		if end > len(results) {
+			end = len(results)
+		}
+	}
+
+	return results[offset:end], nil
+}
+
+// Find returns all artifacts matching a pattern in their virtual path.
+func (s *Store) Find(userID string, pattern string) ([]*ArtifactMetadata, error) {
+	uID := userID
+	if uID == "" {
+		uID = "global"
+	}
+
+	s.mu.RLock()
+	userIdx, ok := s.index[uID]
+	if !ok {
+		s.mu.RUnlock()
+		return []*ArtifactMetadata{}, nil
+	}
+
+	var matchIDs []string
+	for path, id := range userIdx {
+		matched, _ := filepath.Match(pattern, path)
+		
+		// Also check as substring (ignoring wildcards for simple search)
+		cleanPattern := strings.ReplaceAll(pattern, "*", "")
+		if matched || strings.Contains(strings.ToLower(path), strings.ToLower(cleanPattern)) {
+			matchIDs = append(matchIDs, id)
+		}
+	}
+	s.mu.RUnlock()
+
+	var results []*ArtifactMetadata
+	for _, id := range matchIDs {
+		_, meta, err := s.Read(id, userID)
+		if err == nil {
+			results = append(results, meta)
+		}
+	}
+	return results, nil
+}
+
+// Patch modifies an existing artifact's content.
+func (s *Store) Patch(idOrPath string, userID string, patchContent []byte, lineStart, lineEnd int, shouldAppend bool) (int64, error) {
+	oldContent, meta, err := s.Read(idOrPath, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	var newContent []byte
+	if shouldAppend {
+		newContent = append(oldContent, patchContent...)
+	} else {
+		// Line-based patching
+		lines := strings.Split(string(oldContent), "\n")
+		patchLines := strings.Split(string(patchContent), "\n")
+
+		if lineStart < 0 {
+			lineStart = 0
+		}
+		if lineStart > len(lines) {
+			lineStart = len(lines)
+		}
+		if lineEnd < lineStart {
+			lineEnd = lineStart
+		}
+		if lineEnd > len(lines) {
+			lineEnd = len(lines)
+		}
+
+		// Construct new lines
+		resultLines := append([]string{}, lines[:lineStart]...)
+		resultLines = append(resultLines, patchLines...)
+		resultLines = append(resultLines, lines[lineEnd:]...)
+		newContent = []byte(strings.Join(resultLines, "\n"))
+	}
+
+	// Overwrite existing file
+	prefixDir := filepath.Join(s.BaseDir, "global")
+	if userID != "" {
+		prefixDir = filepath.Join(s.BaseDir, "users", userID)
+	}
+
+	// We need to find the actual file on disk (ID_Filename)
+	storageName := fmt.Sprintf("%s_%s", meta.ID, meta.Filename)
+	fullPath := filepath.Join(prefixDir, storageName)
+
+	if err := os.WriteFile(fullPath, newContent, 0644); err != nil {
+		return 0, fmt.Errorf("failed to update data: %w", err)
+	}
+
+	return int64(len(newContent)), nil
+}
+
 // Delete removes an artifact and its associated metadata JSON file.
 // Returns true if the artifact was found and deleted, false otherwise.
-func (s *Store) Delete(idOrFilename string, userID string) (bool, error) {
+func (s *Store) Delete(idOrPath string, userID string) (bool, error) {
+	uID := userID
+	if uID == "" {
+		uID = "global"
+	}
+
+	lookupID := idOrPath
+	var vPath string
+
+	// 1. Try VFS index if it looks like a path
+	if strings.HasPrefix(idOrPath, "/") {
+		s.mu.RLock()
+		if userIdx, ok := s.index[uID]; ok {
+			p := NormalizePath(idOrPath)
+			if id, exists := userIdx[p]; exists {
+				lookupID = id
+				vPath = p
+			}
+		}
+		s.mu.RUnlock()
+	}
+
 	prefixDir := filepath.Join(s.BaseDir, "global")
 	if userID != "" {
 		prefixDir = filepath.Join(s.BaseDir, "users", userID)
@@ -226,13 +520,33 @@ func (s *Store) Delete(idOrFilename string, userID string) (bool, error) {
 	}
 
 	for _, f := range files {
-		isMatch := strings.HasPrefix(f.Name(), idOrFilename) || strings.HasSuffix(f.Name(), "_"+idOrFilename)
+		isMatch := strings.HasPrefix(f.Name(), lookupID) || strings.HasSuffix(f.Name(), "_"+lookupID)
 		if !f.IsDir() && isMatch && !strings.HasSuffix(f.Name(), ".json") {
 			fullPath := filepath.Join(prefixDir, f.Name())
 			metaPath := fullPath + ".json"
 
+			// If we didn't have the path yet (looked up by ID), try to find it in meta
+			if vPath == "" {
+				if metaData, err := os.ReadFile(metaPath); err == nil {
+					var meta ArtifactMetadata
+					if err := json.Unmarshal(metaData, &meta); err == nil {
+						vPath = meta.VirtualPath
+					}
+				}
+			}
+
 			_ = os.Remove(fullPath)
 			_ = os.Remove(metaPath)
+
+			// Update index if we found a path
+			if vPath != "" {
+				s.mu.Lock()
+				if userIdx, ok := s.index[uID]; ok {
+					delete(userIdx, vPath)
+				}
+				s.mu.Unlock()
+			}
+
 			return true, nil
 		}
 	}

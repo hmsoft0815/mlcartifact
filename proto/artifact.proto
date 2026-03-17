@@ -9,6 +9,10 @@ service ArtifactService {
   rpc Read(ReadRequest)    returns (ReadResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc List(ListRequest)    returns (ListResponse);
+
+  // VFS: Hierarchical Virtual File System operations
+  rpc Patch(PatchRequest)  returns (PatchResponse);
+  rpc Find(FindRequest)    returns (ListResponse);
 }
 
 message WriteRequest {
@@ -20,6 +24,7 @@ message WriteRequest {
   map<string, string> metadata = 6;
   string user_id       = 7;  // optional UUID, for multi-user isolation
   string description   = 8;  // optional description
+  string virtual_path  = 9;  // optional, e.g. "/projects/alpha/readme.md"
 }
 
 message WriteResponse {
@@ -27,21 +32,23 @@ message WriteResponse {
   string filename   = 2;  // sanitized filename
   string uri        = 3;  // artifact://filename for LLM reference
   string expires_at = 4;  // ISO 8601
+  string virtual_path = 5; // The normalized path saved
 }
 
 message ReadRequest {
-  string id      = 1;  // artifact ID or filename
+  string id      = 1;  // artifact ID or filename OR virtual_path (if starts with /)
   string user_id = 2;  // optional, scopes lookup to user
 }
 
 message ReadResponse {
-  bytes  content   = 1;
-  string mime_type = 2;
-  string filename  = 3;
+  bytes  content      = 1;
+  string mime_type    = 2;
+  string filename     = 3;
+  string virtual_path = 4;
 }
 
 message DeleteRequest {
-  string id      = 1;
+  string id      = 1;  // artifact ID or filename OR virtual_path (if starts with /)
   string user_id = 2;  // optional, scopes delete to user
 }
 
@@ -50,10 +57,11 @@ message DeleteResponse {
 }
 
 message ListRequest {
-  string source  = 1;  // optional filter by source server
-  string user_id = 2;  // optional, scopes listing to user
-  int32  limit   = 3;  // optional limit
-  int32  offset  = 4;  // optional offset
+  string source   = 1;  // optional filter by source server
+  string user_id  = 2;  // optional, scopes listing to user
+  int32  limit    = 3;  // optional limit
+  int32  offset   = 4;  // optional offset
+  string dir_path = 5;  // optional, if set triggers VFS directory listing mode
 }
 
 message ListResponse {
@@ -61,13 +69,35 @@ message ListResponse {
 }
 
 message ArtifactInfo {
-  string id         = 1;
-  string filename   = 2;
-  string mime_type  = 3;
-  string source     = 4;
-  string created_at = 5;
-  string expires_at = 6;
-  int64  size_bytes = 7;
-  string user_id    = 8;
-  string description = 9;
+  string id           = 1;
+  string filename     = 2;
+  string mime_type    = 3;
+  string source       = 4;
+  string created_at   = 5;
+  string expires_at   = 6;
+  int64  size_bytes   = 7;
+  string user_id      = 8;
+  string description  = 9;
+  string virtual_path = 10;
+  bool   is_directory = 11; // True if this item represents a virtual folder
+}
+
+message PatchRequest {
+  string id           = 1;  // artifact ID or virtual_path
+  string user_id      = 2;
+  bytes  content      = 3;  // content to insert or append
+  int32  line_start   = 4;  // optional, if >= 0 replaces from this line
+  int32  line_end     = 5;  // optional, if >= 0 replaces to this line
+  bool   append       = 6;  // if true, ignores lines and appends to end
+}
+
+message PatchResponse {
+  bool   success      = 1;
+  int64  new_size     = 2;
+  string updated_at   = 3;
+}
+
+message FindRequest {
+  string user_id = 1;
+  string pattern = 2;  // glob pattern, e.g. "**/logs/*.txt"
 }

@@ -53,3 +53,19 @@ func (c *ConnectServer) List(ctx context.Context, req *connect.Request[pb.ListRe
 	}
 	return connect.NewResponse(res), nil
 }
+
+func (c *ConnectServer) Patch(ctx context.Context, req *connect.Request[pb.PatchRequest]) (*connect.Response[pb.PatchResponse], error) {
+	res, err := c.server.Patch(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(res), nil
+}
+
+func (c *ConnectServer) Find(ctx context.Context, req *connect.Request[pb.FindRequest]) (*connect.Response[pb.ListResponse], error) {
+	res, err := c.server.Find(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(res), nil
+}

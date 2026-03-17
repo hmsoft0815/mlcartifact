@@ -25,6 +25,7 @@ type WriteArtifactArgs struct {
 	ExpiresInHours int                    `json:"expires_in_hours,omitempty"` // Hours until auto-deletion (default 24)
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`     // Arbitrary key-value pairs
 	UserID         string                 `json:"user_id,omitempty"`      // Scopes the artifact to a specific user
+	VirtualPath    string                 `json:"virtual_path,omitempty"` // Hierarchical path (VFS)
 }
 
 var store = storage.NewStore(".artifacts")
@@ -66,11 +67,12 @@ func WriteArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 		args.Filename,
 		[]byte(args.Content),
 		args.MimeType,
-		args.ExpiresInHours,
+		int(args.ExpiresInHours),
 		"mcp-tool", // source
 		args.UserID,
 		args.Description,
 		args.Metadata,
+		args.VirtualPath,
 	)
 
 	if err != nil {
@@ -88,7 +90,7 @@ func WriteArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	}
 	resBytes, _ := json.MarshalIndent(res, "", "  ")
 
-	slog.Info("artifact saved via MCP", "id", meta.ID, "filename", meta.Filename)
+	slog.Info("artifact saved via MCP", "id", meta.ID, "filename", meta.Filename, "vpath", meta.VirtualPath)
 
 	return mcp.NewToolResultText(string(resBytes)), nil
 }
@@ -136,7 +138,7 @@ func ListArtifacts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	}
 
 	// We limit MCP results as LLMs don't need huge lists.
-	items, err := store.List(args.UserID, MCPListLimit, 0)
+	items, err := store.List(args.UserID, int(MCPListLimit), 0, "")
 	if err != nil {
 		return mcp.NewToolResultText("error listing artifacts: " + err.Error()), nil
 	}
@@ -175,3 +177,81 @@ func DeleteArtifact(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 	slog.Info("artifact deleted via MCP", "id", args.ID)
 	return mcp.NewToolResultText("artifact deleted successfully"), nil
 }
+
+// VFSPatchArgs defines the input for patching an artifact via MCP.
+type VFSPatchArgs struct {
+	ID        string `json:"id"`                  // ID or virtual path
+	Content   string `json:"content"`             // Text to insert/append
+	LineStart int    `json:"line_start,omitempty"` // Optional start line
+	LineEnd   int    `json:"line_end,omitempty"`   // Optional end line
+	Append    bool   `json:"append,omitempty"`     // If true, appends to end
+	UserID    string `json:"user_id,omitempty"`    // User scope
+}
+
+// VFSPatch is an MCP tool handler that modifies an artifact's content.
+func VFSPatch(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args VFSPatchArgs
+	argBytes, _ := json.Marshal(req.Params.Arguments)
+	if err := json.Unmarshal(argBytes, &args); err != nil {
+		return mcp.NewToolResultText(errInvalidArgs + err.Error()), nil
+	}
+
+	newSize, err := store.Patch(args.ID, args.UserID, []byte(args.Content), args.LineStart, args.LineEnd, args.Append)
+	if err != nil {
+		return mcp.NewToolResultText("error patching artifact: " + err.Error()), nil
+	}
+
+	res := map[string]interface{}{
+		"success":  true,
+		"new_size": newSize,
+	}
+	resBytes, _ := json.MarshalIndent(res, "", "  ")
+	return mcp.NewToolResultText(string(resBytes)), nil
+}
+
+// VFSListArgs defines the input for listing a virtual directory.
+type VFSListArgs struct {
+	Path   string `json:"path"`               // The virtual directory path (e.g. "/docs")
+	UserID string `json:"user_id,omitempty"` // User scope
+}
+
+// VFSList is an MCP tool handler that lists a virtual directory.
+func VFSList(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args VFSListArgs
+	argBytes, _ := json.Marshal(req.Params.Arguments)
+	if err := json.Unmarshal(argBytes, &args); err != nil {
+		return mcp.NewToolResultText(errInvalidArgs + err.Error()), nil
+	}
+
+	items, err := store.List(args.UserID, int(MCPListLimit), 0, args.Path)
+	if err != nil {
+		return mcp.NewToolResultText("error listing vfs: " + err.Error()), nil
+	}
+
+	resBytes, _ := json.MarshalIndent(items, "", "  ")
+	return mcp.NewToolResultText(string(resBytes)), nil
+}
+
+// VFSFindArgs defines the input for searching artifacts.
+type VFSFindArgs struct {
+	Pattern string `json:"pattern"`           // Glob pattern (e.g. "*.txt")
+	UserID  string `json:"user_id,omitempty"` // User scope
+}
+
+// VFSFind is an MCP tool handler that searches for artifacts.
+func VFSFind(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args VFSFindArgs
+	argBytes, _ := json.Marshal(req.Params.Arguments)
+	if err := json.Unmarshal(argBytes, &args); err != nil {
+		return mcp.NewToolResultText(errInvalidArgs + err.Error()), nil
+	}
+
+	items, err := store.Find(args.UserID, args.Pattern)
+	if err != nil {
+		return mcp.NewToolResultText("error finding artifacts: " + err.Error()), nil
+	}
+
+	resBytes, _ := json.MarshalIndent(items, "", "  ")
+	return mcp.NewToolResultText(string(resBytes)), nil
+}
+

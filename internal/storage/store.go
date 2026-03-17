@@ -57,7 +57,8 @@ func NewStore(baseDir string) *Store {
 // 4. Detects the MIME type if not provided.
 // 5. Writes the binary content and the JSON metadata to disk.
 func (s *Store) Write(filename string, content []byte, mimeType string, expiresHours int, source string, userID string, description string, metadata map[string]interface{}) (*ArtifactMetadata, error) {
-	if description != "" && utf8Valid(description) == false {
+	// 1. Validates input (UTF-8 checks).
+	if description != "" && !utf8Valid(description) {
 		return nil, fmt.Errorf("description contains invalid UTF-8 characters")
 	}
 	if err := os.MkdirAll(s.BaseDir, 0755); err != nil {

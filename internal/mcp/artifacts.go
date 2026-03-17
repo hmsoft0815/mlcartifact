@@ -127,11 +127,13 @@ type ListArtifactsArgs struct {
 	UserID string `json:"user_id,omitempty"` // Optional user scope to filter results
 }
 
-// ListArtifacts is an MCP tool handler that returns a list of available artifacts.
+	// ListArtifacts is an MCP tool handler that returns a list of available artifacts.
 func ListArtifacts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var args ListArtifactsArgs
 	argBytes, _ := json.Marshal(req.Params.Arguments)
-	json.Unmarshal(argBytes, &args)
+	if err := json.Unmarshal(argBytes, &args); err != nil {
+		return mcp.NewToolResultText(errInvalidArgs + err.Error()), nil
+	}
 
 	// We limit MCP results as LLMs don't need huge lists.
 	items, err := store.List(args.UserID, MCPListLimit, 0)

@@ -58,8 +58,10 @@ func TestServer_ListDelete(t *testing.T) {
 	ctx := context.Background()
 
 	userId := "list-user"
-	s.Write(ctx, &pb.WriteRequest{Filename: "f1", Content: []byte("1"), UserId: userId})
-	s.Write(ctx, &pb.WriteRequest{Filename: "f2", Content: []byte("2"), UserId: userId})
+	_, err = s.Write(ctx, &pb.WriteRequest{Filename: "f1", Content: []byte("1"), UserId: userId})
+	require.NoError(t, err)
+	_, err = s.Write(ctx, &pb.WriteRequest{Filename: "f2", Content: []byte("2"), UserId: userId})
+	require.NoError(t, err)
 
 	// Test List
 	listRes, err := s.List(ctx, &pb.ListRequest{UserId: userId})

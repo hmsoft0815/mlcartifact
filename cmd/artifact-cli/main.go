@@ -74,7 +74,9 @@ func handleList(cli *client.Client, args []string) {
 	limit := fs.Int("limit", 0, "Limit items")
 	offset := fs.Int("offset", 0, "Offset items")
 	user := fs.String("user", "", "Filter by user ID")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("Parse error: %v", err)
+	}
 
 	// Request list with optional pagination and user filtering.
 
@@ -99,7 +101,9 @@ func handleList(cli *client.Client, args []string) {
 func handleDelete(cli *client.Client, args []string) {
 	fs := flag.NewFlagSet("delete", flag.ExitOnError)
 	user := fs.String("user", "", "Scope to user ID")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("Parse error: %v", err)
+	}
 
 	if fs.NArg() < 1 {
 		log.Fatal("Artifact ID required")
@@ -122,7 +126,9 @@ func handleCreate(cli *client.Client, args []string) {
 	desc := fs.String("description", "", "Add description")
 	user := fs.String("user", os.Getenv("ARTIFACT_USER_ID"), "User ID")
 	expires := fs.Int("expires", 24, "Expiration in hours")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("Parse error: %v", err)
+	}
 
 	if fs.NArg() < 1 {
 		log.Fatal("Local file path required")
@@ -158,7 +164,9 @@ func handleCreate(cli *client.Client, args []string) {
 func handleDownload(cli *client.Client, args []string) {
 	fs := flag.NewFlagSet("download", flag.ExitOnError)
 	user := fs.String("user", "", "Scope to user ID")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("Parse error: %v", err)
+	}
 
 	if fs.NArg() < 2 {
 		log.Fatal("Artifact ID and local path required")

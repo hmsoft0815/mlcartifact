@@ -106,8 +106,8 @@ Moving beyond simple local file storage, `mlcartifact` uses a gRPC-first approac
 curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
 
 # or via Go
-go install github.com/hmsoft0815/mlcartifact/cmd/server@latest
-go install github.com/hmsoft0815/mlcartifact/cmd/cli@latest
+go install github.com/hmsoft0815/mlcartifact/cmd/artifact-server@latest
+go install github.com/hmsoft0815/mlcartifact/cmd/artifact-cli@latest
 ```
 
 Pre-built `.deb`, `.rpm`, and binaries on **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)**.

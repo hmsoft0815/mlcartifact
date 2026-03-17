@@ -105,8 +105,8 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 curl -sfL https://raw.githubusercontent.com/hmsoft0815/mlcartifact/main/scripts/install.sh | sh
 
 # oder via Go
-go install github.com/hmsoft0815/mlcartifact/cmd/server@latest
-go install github.com/hmsoft0815/mlcartifact/cmd/cli@latest
+go install github.com/hmsoft0815/mlcartifact/cmd/artifact-server@latest
+go install github.com/hmsoft0815/mlcartifact/cmd/artifact-cli@latest
 ```
 
 Vorkompilierte `.deb`, `.rpm` und Binaries unter **[GitHub Releases](https://github.com/hmsoft0815/mlcartifact/releases)**.

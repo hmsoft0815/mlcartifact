@@ -34,24 +34,24 @@ The following tools will be added to the server's MCP capabilities:
 ## Roadmap
 
 ### Phase 1: Storage Layer Enhancements (Core)
-- [ ] Update `ArtifactMetadata` struct.
-- [ ] Implement `Store.ReadByPath(userID, path)` and `Store.WriteByPath(userID, path, ...)`.
-- [ ] Implement `Store.ListByPath(userID, dirPath)` (handles virtual directory logic).
-- [ ] Add `Store.Find(userID, pattern)`.
+- [x] Update `ArtifactMetadata` struct.
+- [x] Implement `Store.ReadByPath(userID, path)` and `Store.WriteByPath(userID, path, ...)`. (Implemented in general `Read`/`Write`)
+- [x] Implement `Store.ListByPath(userID, dirPath)` (handles virtual directory logic).
+- [x] Add `Store.Find(userID, pattern)`.
 
 ### Phase 2: Partial Edits (VFS Patch)
-- [ ] Implement `Store.Patch(userID, path, lineStart, lineEnd, newContent)`.
-- [ ] Implement `Store.Append(userID, path, content)`.
+- [x] Implement `Store.Patch(userID, path, lineStart, lineEnd, newContent)`.
+- [x] Implement `Store.Append(userID, path, content)`.
 
 ### Phase 3: API & MCP Integration
-- [ ] Add gRPC methods for VFS operations to `artifact.proto`.
-- [ ] Implement server-side handlers for new gRPC methods.
-- [ ] Register new MCP tools (`vfs_ls`, `vfs_write`, etc.).
+- [x] Add gRPC methods for VFS operations to `artifact.proto`.
+- [x] Implement server-side handlers for new gRPC methods.
+- [x] Register new MCP tools (`vfs_ls`, `vfs_write`, etc.).
 
 ### Phase 4: Validation & Tooling
-- [ ] Unit tests for VFS path resolution.
-- [ ] Update `artifact-cli` to support VFS commands (e.g., `artifact-cli vfs-ls /`).
-- [ ] Documentation update for VFS usage.
+- [x] Unit tests for VFS path resolution.
+- [/] Update `artifact-cli` to support VFS commands (e.g., `artifact-cli vfs-ls /`).
+- [/] Documentation update for VFS usage. (Prompt + mlcprodweb)
 
 ## Technical Design Considerations
 - **Normalization**: Paths should always start with `/` and be sanitized (remove `..`, trailing slashes, etc.).

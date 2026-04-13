@@ -255,3 +255,45 @@ func VFSFind(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult,
 	return mcp.NewToolResultText(string(resBytes)), nil
 }
 
+
+// HandleVFSUsagePrompt provides guidelines to the LLM on using the virtual file system.
+func HandleVFSUsagePrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	instructions := `# mlcartifact VFS Usage Guidelines
+
+You are interacting with a persistent artifact storage service that supports a hierarchical **Virtual File System (VFS)**. 
+
+## 1. Organizing with Virtual Paths
+Instead of relying on flat IDs, you can organize your work into logical directory structures using the ` + "`virtual_path`" + ` argument in ` + "`write_artifact`" + `.
+- **Always** use absolute paths starting with ` + "`/`" + ` (e.g., ` + "`/projects/ai-analysis/report.md`" + `).
+- Directories are created implicitly.
+
+## 2. Surgical Edits with vfs_patch
+For large artifacts (code files, data logs, long reports), prefer ` + "`vfs_patch`" + ` over ` + "`write_artifact`" + `.
+- **Appending**: Use ` + "`append: true`" + ` to quickly add data to the end of a file.
+- **Line Replacement**: Use ` + "`line_start`" + ` and ` + "`line_end`" + ` (0-indexed) to replace specific sections.
+- This is much faster and more token-efficient than re-uploading the entire file.
+
+## 3. Discovery & Navigation
+- Use ` + "`vfs_ls`" + ` to list contents of a virtual directory.
+- Use ` + "`vfs_find`" + ` with glob patterns (e.g., ` + "`/**/*.go`" + `) to search across the entire user scope.
+- When reading an artifact by path, ensure you include the leading ` + "`/`" + `.
+
+## 4. Cross-Tool References
+When you save an artifact, you receive a reference tag like ` + "`<file id=\"...\" type=\"...\">filename</file>`" + `. 
+- **Always** include this tag in your final response to the user so they can access the file.
+- Other tools (like D2 renderer or Barcode generator) can also output these tags.
+`
+
+	return &mcp.GetPromptResult{
+		Description: "Guidelines for using the mlcartifact VFS capabilities.",
+		Messages: []mcp.PromptMessage{
+			{
+				Role:   mcp.RoleAssistant,
+				Content: mcp.TextContent{
+					Type: "text",
+					Text: instructions,
+				},
+			},
+		},
+	}, nil
+}

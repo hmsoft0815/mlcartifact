@@ -1,8 +1,8 @@
 id: "mlcartifact"
 name: "mlcartifact"
-version: "0.4.3"
+version: "0.5.0"
 status: "stable"
-category: "Infrastructure"
+category: "MCP Tools"
 license: "MIT"
 platforms: [Windows, macOS, Linux]
 slogan_en: "Don't route large data through the LLM — let MCP servers exchange artifacts by ID."

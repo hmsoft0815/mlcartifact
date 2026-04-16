@@ -20,6 +20,27 @@ build-cli:
 	mkdir -p $(BINARY_DIR)
 	go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli ./cmd/artifact-cli
 
+# Cross-platform builds
+build-all: build-linux build-windows build-macos
+
+build-linux:
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-server-linux-amd64 ./cmd/artifact-server
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli-linux-amd64 ./cmd/artifact-cli
+
+build-windows:
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-server-windows-amd64.exe ./cmd/artifact-server
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli-windows-amd64.exe ./cmd/artifact-cli
+
+build-macos: build-macos-amd64 build-macos-arm64
+
+build-macos-amd64:
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-server-macos-amd64 ./cmd/artifact-server
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli-macos-amd64 ./cmd/artifact-cli
+
+build-macos-arm64:
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-server-macos-arm64 ./cmd/artifact-server
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli-macos-arm64 ./cmd/artifact-cli
+
 # Testing
 test:
 	go test ./...
@@ -117,4 +138,8 @@ help:
 	@echo "  run-example-ts     - Run the TypeScript client example"
 	@echo "  run-example-rust   - Run the Rust client example"
 	@echo "  run-examples       - Run all client examples"
-	@echo "  clean         - Remove build artifacts"
+	@echo "  build-all          - Build for all platforms (Linux, Windows, macOS)"
+	@echo "  build-linux        - Build for Linux amd64"
+	@echo "  build-windows      - Build for Windows amd64"
+	@echo "  build-macos        - Build for macOS (Intel & Silicon)"
+	@echo "  clean              - Remove build artifacts"

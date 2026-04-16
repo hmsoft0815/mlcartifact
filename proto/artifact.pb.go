@@ -29,8 +29,9 @@ type WriteRequest struct {
 	ExpiresHours  int32                  `protobuf:"varint,4,opt,name=expires_hours,json=expiresHours,proto3" json:"expires_hours,omitempty"` // optional, default 24
 	Source        string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"`                                  // server name for auditing, e.g. "d2mcp"
 	Metadata      map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	UserId        string                 `protobuf:"bytes,7,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // optional UUID, for multi-user isolation
-	Description   string                 `protobuf:"bytes,8,opt,name=description,proto3" json:"description,omitempty"`     // optional description
+	UserId        string                 `protobuf:"bytes,7,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                // optional UUID, for multi-user isolation
+	Description   string                 `protobuf:"bytes,8,opt,name=description,proto3" json:"description,omitempty"`                    // optional description
+	VirtualPath   string                 `protobuf:"bytes,9,opt,name=virtual_path,json=virtualPath,proto3" json:"virtual_path,omitempty"` // optional, e.g. "/projects/alpha/readme.md"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -121,12 +122,20 @@ func (x *WriteRequest) GetDescription() string {
 	return ""
 }
 
+func (x *WriteRequest) GetVirtualPath() string {
+	if x != nil {
+		return x.VirtualPath
+	}
+	return ""
+}
+
 type WriteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                // unique artifact ID
-	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`                    // sanitized filename
-	Uri           string                 `protobuf:"bytes,3,opt,name=uri,proto3" json:"uri,omitempty"`                              // artifact://filename for LLM reference
-	ExpiresAt     string                 `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"` // ISO 8601
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                      // unique artifact ID
+	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`                          // sanitized filename
+	Uri           string                 `protobuf:"bytes,3,opt,name=uri,proto3" json:"uri,omitempty"`                                    // artifact://filename for LLM reference
+	ExpiresAt     string                 `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`       // ISO 8601
+	VirtualPath   string                 `protobuf:"bytes,5,opt,name=virtual_path,json=virtualPath,proto3" json:"virtual_path,omitempty"` // The normalized path saved
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -189,9 +198,16 @@ func (x *WriteResponse) GetExpiresAt() string {
 	return ""
 }
 
+func (x *WriteResponse) GetVirtualPath() string {
+	if x != nil {
+		return x.VirtualPath
+	}
+	return ""
+}
+
 type ReadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                       // artifact ID or filename
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                       // artifact ID or filename OR virtual_path (if starts with /)
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // optional, scopes lookup to user
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -246,6 +262,7 @@ type ReadResponse struct {
 	Content       []byte                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
 	MimeType      string                 `protobuf:"bytes,2,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
 	Filename      string                 `protobuf:"bytes,3,opt,name=filename,proto3" json:"filename,omitempty"`
+	VirtualPath   string                 `protobuf:"bytes,4,opt,name=virtual_path,json=virtualPath,proto3" json:"virtual_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -301,9 +318,16 @@ func (x *ReadResponse) GetFilename() string {
 	return ""
 }
 
+func (x *ReadResponse) GetVirtualPath() string {
+	if x != nil {
+		return x.VirtualPath
+	}
+	return ""
+}
+
 type DeleteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                       // artifact ID or filename OR virtual_path (if starts with /)
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // optional, scopes delete to user
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -399,10 +423,11 @@ func (x *DeleteResponse) GetDeleted() bool {
 
 type ListRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`               // optional filter by source server
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // optional, scopes listing to user
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                // optional limit
-	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`              // optional offset
+	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`                  // optional filter by source server
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`    // optional, scopes listing to user
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                   // optional limit
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`                 // optional offset
+	DirPath       string                 `protobuf:"bytes,5,opt,name=dir_path,json=dirPath,proto3" json:"dir_path,omitempty"` // optional, if set triggers VFS directory listing mode
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -465,6 +490,13 @@ func (x *ListRequest) GetOffset() int32 {
 	return 0
 }
 
+func (x *ListRequest) GetDirPath() string {
+	if x != nil {
+		return x.DirPath
+	}
+	return ""
+}
+
 type ListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*ArtifactInfo        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
@@ -520,6 +552,8 @@ type ArtifactInfo struct {
 	SizeBytes     int64                  `protobuf:"varint,7,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	UserId        string                 `protobuf:"bytes,8,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Description   string                 `protobuf:"bytes,9,opt,name=description,proto3" json:"description,omitempty"`
+	VirtualPath   string                 `protobuf:"bytes,10,opt,name=virtual_path,json=virtualPath,proto3" json:"virtual_path,omitempty"`
+	IsDirectory   bool                   `protobuf:"varint,11,opt,name=is_directory,json=isDirectory,proto3" json:"is_directory,omitempty"` // True if this item represents a virtual folder
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -617,11 +651,221 @@ func (x *ArtifactInfo) GetDescription() string {
 	return ""
 }
 
+func (x *ArtifactInfo) GetVirtualPath() string {
+	if x != nil {
+		return x.VirtualPath
+	}
+	return ""
+}
+
+func (x *ArtifactInfo) GetIsDirectory() bool {
+	if x != nil {
+		return x.IsDirectory
+	}
+	return false
+}
+
+type PatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // artifact ID or virtual_path
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Content       []byte                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`                       // content to insert or append
+	LineStart     int32                  `protobuf:"varint,4,opt,name=line_start,json=lineStart,proto3" json:"line_start,omitempty"` // optional, if >= 0 replaces from this line
+	LineEnd       int32                  `protobuf:"varint,5,opt,name=line_end,json=lineEnd,proto3" json:"line_end,omitempty"`       // optional, if >= 0 replaces to this line
+	Append        bool                   `protobuf:"varint,6,opt,name=append,proto3" json:"append,omitempty"`                        // if true, ignores lines and appends to end
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PatchRequest) Reset() {
+	*x = PatchRequest{}
+	mi := &file_artifact_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PatchRequest) ProtoMessage() {}
+
+func (x *PatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_artifact_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PatchRequest.ProtoReflect.Descriptor instead.
+func (*PatchRequest) Descriptor() ([]byte, []int) {
+	return file_artifact_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *PatchRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PatchRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *PatchRequest) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *PatchRequest) GetLineStart() int32 {
+	if x != nil {
+		return x.LineStart
+	}
+	return 0
+}
+
+func (x *PatchRequest) GetLineEnd() int32 {
+	if x != nil {
+		return x.LineEnd
+	}
+	return 0
+}
+
+func (x *PatchRequest) GetAppend() bool {
+	if x != nil {
+		return x.Append
+	}
+	return false
+}
+
+type PatchResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	NewSize       int64                  `protobuf:"varint,2,opt,name=new_size,json=newSize,proto3" json:"new_size,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,3,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PatchResponse) Reset() {
+	*x = PatchResponse{}
+	mi := &file_artifact_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PatchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PatchResponse) ProtoMessage() {}
+
+func (x *PatchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_artifact_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PatchResponse.ProtoReflect.Descriptor instead.
+func (*PatchResponse) Descriptor() ([]byte, []int) {
+	return file_artifact_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PatchResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *PatchResponse) GetNewSize() int64 {
+	if x != nil {
+		return x.NewSize
+	}
+	return 0
+}
+
+func (x *PatchResponse) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+type FindRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Pattern       string                 `protobuf:"bytes,2,opt,name=pattern,proto3" json:"pattern,omitempty"` // glob pattern, e.g. "**/logs/*.txt"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindRequest) Reset() {
+	*x = FindRequest{}
+	mi := &file_artifact_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindRequest) ProtoMessage() {}
+
+func (x *FindRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_artifact_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindRequest.ProtoReflect.Descriptor instead.
+func (*FindRequest) Descriptor() ([]byte, []int) {
+	return file_artifact_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *FindRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *FindRequest) GetPattern() string {
+	if x != nil {
+		return x.Pattern
+	}
+	return ""
+}
+
 var File_artifact_proto protoreflect.FileDescriptor
 
 const file_artifact_proto_rawDesc = "" +
 	"\n" +
-	"\x0eartifact.proto\x12\vartifact.v1\"\xdb\x02\n" +
+	"\x0eartifact.proto\x12\vartifact.v1\"\xfe\x02\n" +
 	"\fWriteRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\fR\acontent\x12\x1b\n" +
@@ -630,35 +874,39 @@ const file_artifact_proto_rawDesc = "" +
 	"\x06source\x18\x05 \x01(\tR\x06source\x12C\n" +
 	"\bmetadata\x18\x06 \x03(\v2'.artifact.v1.WriteRequest.MetadataEntryR\bmetadata\x12\x17\n" +
 	"\auser_id\x18\a \x01(\tR\x06userId\x12 \n" +
-	"\vdescription\x18\b \x01(\tR\vdescription\x1a;\n" +
+	"\vdescription\x18\b \x01(\tR\vdescription\x12!\n" +
+	"\fvirtual_path\x18\t \x01(\tR\vvirtualPath\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"l\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8f\x01\n" +
 	"\rWriteResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x10\n" +
 	"\x03uri\x18\x03 \x01(\tR\x03uri\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\x04 \x01(\tR\texpiresAt\"6\n" +
+	"expires_at\x18\x04 \x01(\tR\texpiresAt\x12!\n" +
+	"\fvirtual_path\x18\x05 \x01(\tR\vvirtualPath\"6\n" +
 	"\vReadRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"a\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x84\x01\n" +
 	"\fReadResponse\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\fR\acontent\x12\x1b\n" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x1a\n" +
-	"\bfilename\x18\x03 \x01(\tR\bfilename\"8\n" +
+	"\bfilename\x18\x03 \x01(\tR\bfilename\x12!\n" +
+	"\fvirtual_path\x18\x04 \x01(\tR\vvirtualPath\"8\n" +
 	"\rDeleteRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"*\n" +
 	"\x0eDeleteResponse\x12\x18\n" +
-	"\adeleted\x18\x01 \x01(\bR\adeleted\"l\n" +
+	"\adeleted\x18\x01 \x01(\bR\adeleted\"\x87\x01\n" +
 	"\vListRequest\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"?\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
+	"\bdir_path\x18\x05 \x01(\tR\adirPath\"?\n" +
 	"\fListResponse\x12/\n" +
-	"\x05items\x18\x01 \x03(\v2\x19.artifact.v1.ArtifactInfoR\x05items\"\x87\x02\n" +
+	"\x05items\x18\x01 \x03(\v2\x19.artifact.v1.ArtifactInfoR\x05items\"\xcd\x02\n" +
 	"\fArtifactInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1b\n" +
@@ -671,12 +919,33 @@ const file_artifact_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18\a \x01(\x03R\tsizeBytes\x12\x17\n" +
 	"\auser_id\x18\b \x01(\tR\x06userId\x12 \n" +
-	"\vdescription\x18\t \x01(\tR\vdescription2\x8e\x02\n" +
+	"\vdescription\x18\t \x01(\tR\vdescription\x12!\n" +
+	"\fvirtual_path\x18\n" +
+	" \x01(\tR\vvirtualPath\x12!\n" +
+	"\fis_directory\x18\v \x01(\bR\visDirectory\"\xa3\x01\n" +
+	"\fPatchRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\fR\acontent\x12\x1d\n" +
+	"\n" +
+	"line_start\x18\x04 \x01(\x05R\tlineStart\x12\x19\n" +
+	"\bline_end\x18\x05 \x01(\x05R\alineEnd\x12\x16\n" +
+	"\x06append\x18\x06 \x01(\bR\x06append\"c\n" +
+	"\rPatchResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x19\n" +
+	"\bnew_size\x18\x02 \x01(\x03R\anewSize\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x03 \x01(\tR\tupdatedAt\"@\n" +
+	"\vFindRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
+	"\apattern\x18\x02 \x01(\tR\apattern2\x8b\x03\n" +
 	"\x0fArtifactService\x12>\n" +
 	"\x05Write\x12\x19.artifact.v1.WriteRequest\x1a\x1a.artifact.v1.WriteResponse\x12;\n" +
 	"\x04Read\x12\x18.artifact.v1.ReadRequest\x1a\x19.artifact.v1.ReadResponse\x12A\n" +
 	"\x06Delete\x12\x1a.artifact.v1.DeleteRequest\x1a\x1b.artifact.v1.DeleteResponse\x12;\n" +
-	"\x04List\x12\x18.artifact.v1.ListRequest\x1a\x19.artifact.v1.ListResponseB)Z'github.com/hmsoft0815/mlcartifact/protob\x06proto3"
+	"\x04List\x12\x18.artifact.v1.ListRequest\x1a\x19.artifact.v1.ListResponse\x12>\n" +
+	"\x05Patch\x12\x19.artifact.v1.PatchRequest\x1a\x1a.artifact.v1.PatchResponse\x12;\n" +
+	"\x04Find\x12\x18.artifact.v1.FindRequest\x1a\x19.artifact.v1.ListResponseB)Z'github.com/hmsoft0815/mlcartifact/protob\x06proto3"
 
 var (
 	file_artifact_proto_rawDescOnce sync.Once
@@ -690,7 +959,7 @@ func file_artifact_proto_rawDescGZIP() []byte {
 	return file_artifact_proto_rawDescData
 }
 
-var file_artifact_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_artifact_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_artifact_proto_goTypes = []any{
 	(*WriteRequest)(nil),   // 0: artifact.v1.WriteRequest
 	(*WriteResponse)(nil),  // 1: artifact.v1.WriteResponse
@@ -701,24 +970,31 @@ var file_artifact_proto_goTypes = []any{
 	(*ListRequest)(nil),    // 6: artifact.v1.ListRequest
 	(*ListResponse)(nil),   // 7: artifact.v1.ListResponse
 	(*ArtifactInfo)(nil),   // 8: artifact.v1.ArtifactInfo
-	nil,                    // 9: artifact.v1.WriteRequest.MetadataEntry
+	(*PatchRequest)(nil),   // 9: artifact.v1.PatchRequest
+	(*PatchResponse)(nil),  // 10: artifact.v1.PatchResponse
+	(*FindRequest)(nil),    // 11: artifact.v1.FindRequest
+	nil,                    // 12: artifact.v1.WriteRequest.MetadataEntry
 }
 var file_artifact_proto_depIdxs = []int32{
-	9, // 0: artifact.v1.WriteRequest.metadata:type_name -> artifact.v1.WriteRequest.MetadataEntry
-	8, // 1: artifact.v1.ListResponse.items:type_name -> artifact.v1.ArtifactInfo
-	0, // 2: artifact.v1.ArtifactService.Write:input_type -> artifact.v1.WriteRequest
-	2, // 3: artifact.v1.ArtifactService.Read:input_type -> artifact.v1.ReadRequest
-	4, // 4: artifact.v1.ArtifactService.Delete:input_type -> artifact.v1.DeleteRequest
-	6, // 5: artifact.v1.ArtifactService.List:input_type -> artifact.v1.ListRequest
-	1, // 6: artifact.v1.ArtifactService.Write:output_type -> artifact.v1.WriteResponse
-	3, // 7: artifact.v1.ArtifactService.Read:output_type -> artifact.v1.ReadResponse
-	5, // 8: artifact.v1.ArtifactService.Delete:output_type -> artifact.v1.DeleteResponse
-	7, // 9: artifact.v1.ArtifactService.List:output_type -> artifact.v1.ListResponse
-	6, // [6:10] is the sub-list for method output_type
-	2, // [2:6] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	12, // 0: artifact.v1.WriteRequest.metadata:type_name -> artifact.v1.WriteRequest.MetadataEntry
+	8,  // 1: artifact.v1.ListResponse.items:type_name -> artifact.v1.ArtifactInfo
+	0,  // 2: artifact.v1.ArtifactService.Write:input_type -> artifact.v1.WriteRequest
+	2,  // 3: artifact.v1.ArtifactService.Read:input_type -> artifact.v1.ReadRequest
+	4,  // 4: artifact.v1.ArtifactService.Delete:input_type -> artifact.v1.DeleteRequest
+	6,  // 5: artifact.v1.ArtifactService.List:input_type -> artifact.v1.ListRequest
+	9,  // 6: artifact.v1.ArtifactService.Patch:input_type -> artifact.v1.PatchRequest
+	11, // 7: artifact.v1.ArtifactService.Find:input_type -> artifact.v1.FindRequest
+	1,  // 8: artifact.v1.ArtifactService.Write:output_type -> artifact.v1.WriteResponse
+	3,  // 9: artifact.v1.ArtifactService.Read:output_type -> artifact.v1.ReadResponse
+	5,  // 10: artifact.v1.ArtifactService.Delete:output_type -> artifact.v1.DeleteResponse
+	7,  // 11: artifact.v1.ArtifactService.List:output_type -> artifact.v1.ListResponse
+	10, // 12: artifact.v1.ArtifactService.Patch:output_type -> artifact.v1.PatchResponse
+	7,  // 13: artifact.v1.ArtifactService.Find:output_type -> artifact.v1.ListResponse
+	8,  // [8:14] is the sub-list for method output_type
+	2,  // [2:8] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_artifact_proto_init() }
@@ -732,7 +1008,7 @@ func file_artifact_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_artifact_proto_rawDesc), len(file_artifact_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

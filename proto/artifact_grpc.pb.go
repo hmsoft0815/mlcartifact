@@ -23,6 +23,8 @@ const (
 	ArtifactService_Read_FullMethodName   = "/artifact.v1.ArtifactService/Read"
 	ArtifactService_Delete_FullMethodName = "/artifact.v1.ArtifactService/Delete"
 	ArtifactService_List_FullMethodName   = "/artifact.v1.ArtifactService/List"
+	ArtifactService_Patch_FullMethodName  = "/artifact.v1.ArtifactService/Patch"
+	ArtifactService_Find_FullMethodName   = "/artifact.v1.ArtifactService/Find"
 )
 
 // ArtifactServiceClient is the client API for ArtifactService service.
@@ -33,6 +35,9 @@ type ArtifactServiceClient interface {
 	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+	// VFS: Hierarchical Virtual File System operations
+	Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error)
+	Find(ctx context.Context, in *FindRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
 type artifactServiceClient struct {
@@ -83,6 +88,26 @@ func (c *artifactServiceClient) List(ctx context.Context, in *ListRequest, opts 
 	return out, nil
 }
 
+func (c *artifactServiceClient) Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PatchResponse)
+	err := c.cc.Invoke(ctx, ArtifactService_Patch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *artifactServiceClient) Find(ctx context.Context, in *FindRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, ArtifactService_Find_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ArtifactServiceServer is the server API for ArtifactService service.
 // All implementations must embed UnimplementedArtifactServiceServer
 // for forward compatibility.
@@ -91,6 +116,9 @@ type ArtifactServiceServer interface {
 	Read(context.Context, *ReadRequest) (*ReadResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	List(context.Context, *ListRequest) (*ListResponse, error)
+	// VFS: Hierarchical Virtual File System operations
+	Patch(context.Context, *PatchRequest) (*PatchResponse, error)
+	Find(context.Context, *FindRequest) (*ListResponse, error)
 	mustEmbedUnimplementedArtifactServiceServer()
 }
 
@@ -112,6 +140,12 @@ func (UnimplementedArtifactServiceServer) Delete(context.Context, *DeleteRequest
 }
 func (UnimplementedArtifactServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedArtifactServiceServer) Patch(context.Context, *PatchRequest) (*PatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
+}
+func (UnimplementedArtifactServiceServer) Find(context.Context, *FindRequest) (*ListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Find not implemented")
 }
 func (UnimplementedArtifactServiceServer) mustEmbedUnimplementedArtifactServiceServer() {}
 func (UnimplementedArtifactServiceServer) testEmbeddedByValue()                         {}
@@ -206,6 +240,42 @@ func _ArtifactService_List_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ArtifactService_Patch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArtifactServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ArtifactService_Patch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArtifactServiceServer).Patch(ctx, req.(*PatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ArtifactService_Find_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ArtifactServiceServer).Find(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ArtifactService_Find_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ArtifactServiceServer).Find(ctx, req.(*FindRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ArtifactService_ServiceDesc is the grpc.ServiceDesc for ArtifactService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +298,14 @@ var ArtifactService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "List",
 			Handler:    _ArtifactService_List_Handler,
+		},
+		{
+			MethodName: "Patch",
+			Handler:    _ArtifactService_Patch_Handler,
+		},
+		{
+			MethodName: "Find",
+			Handler:    _ArtifactService_Find_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -41,6 +41,10 @@ const (
 	ArtifactServiceDeleteProcedure = "/artifact.v1.ArtifactService/Delete"
 	// ArtifactServiceListProcedure is the fully-qualified name of the ArtifactService's List RPC.
 	ArtifactServiceListProcedure = "/artifact.v1.ArtifactService/List"
+	// ArtifactServicePatchProcedure is the fully-qualified name of the ArtifactService's Patch RPC.
+	ArtifactServicePatchProcedure = "/artifact.v1.ArtifactService/Patch"
+	// ArtifactServiceFindProcedure is the fully-qualified name of the ArtifactService's Find RPC.
+	ArtifactServiceFindProcedure = "/artifact.v1.ArtifactService/Find"
 )
 
 // ArtifactServiceClient is a client for the artifact.v1.ArtifactService service.
@@ -49,6 +53,9 @@ type ArtifactServiceClient interface {
 	Read(context.Context, *connect.Request[proto.ReadRequest]) (*connect.Response[proto.ReadResponse], error)
 	Delete(context.Context, *connect.Request[proto.DeleteRequest]) (*connect.Response[proto.DeleteResponse], error)
 	List(context.Context, *connect.Request[proto.ListRequest]) (*connect.Response[proto.ListResponse], error)
+	// VFS: Hierarchical Virtual File System operations
+	Patch(context.Context, *connect.Request[proto.PatchRequest]) (*connect.Response[proto.PatchResponse], error)
+	Find(context.Context, *connect.Request[proto.FindRequest]) (*connect.Response[proto.ListResponse], error)
 }
 
 // NewArtifactServiceClient constructs a client for the artifact.v1.ArtifactService service. By
@@ -86,6 +93,18 @@ func NewArtifactServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(artifactServiceMethods.ByName("List")),
 			connect.WithClientOptions(opts...),
 		),
+		patch: connect.NewClient[proto.PatchRequest, proto.PatchResponse](
+			httpClient,
+			baseURL+ArtifactServicePatchProcedure,
+			connect.WithSchema(artifactServiceMethods.ByName("Patch")),
+			connect.WithClientOptions(opts...),
+		),
+		find: connect.NewClient[proto.FindRequest, proto.ListResponse](
+			httpClient,
+			baseURL+ArtifactServiceFindProcedure,
+			connect.WithSchema(artifactServiceMethods.ByName("Find")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -95,6 +114,8 @@ type artifactServiceClient struct {
 	read   *connect.Client[proto.ReadRequest, proto.ReadResponse]
 	delete *connect.Client[proto.DeleteRequest, proto.DeleteResponse]
 	list   *connect.Client[proto.ListRequest, proto.ListResponse]
+	patch  *connect.Client[proto.PatchRequest, proto.PatchResponse]
+	find   *connect.Client[proto.FindRequest, proto.ListResponse]
 }
 
 // Write calls artifact.v1.ArtifactService.Write.
@@ -117,12 +138,25 @@ func (c *artifactServiceClient) List(ctx context.Context, req *connect.Request[p
 	return c.list.CallUnary(ctx, req)
 }
 
+// Patch calls artifact.v1.ArtifactService.Patch.
+func (c *artifactServiceClient) Patch(ctx context.Context, req *connect.Request[proto.PatchRequest]) (*connect.Response[proto.PatchResponse], error) {
+	return c.patch.CallUnary(ctx, req)
+}
+
+// Find calls artifact.v1.ArtifactService.Find.
+func (c *artifactServiceClient) Find(ctx context.Context, req *connect.Request[proto.FindRequest]) (*connect.Response[proto.ListResponse], error) {
+	return c.find.CallUnary(ctx, req)
+}
+
 // ArtifactServiceHandler is an implementation of the artifact.v1.ArtifactService service.
 type ArtifactServiceHandler interface {
 	Write(context.Context, *connect.Request[proto.WriteRequest]) (*connect.Response[proto.WriteResponse], error)
 	Read(context.Context, *connect.Request[proto.ReadRequest]) (*connect.Response[proto.ReadResponse], error)
 	Delete(context.Context, *connect.Request[proto.DeleteRequest]) (*connect.Response[proto.DeleteResponse], error)
 	List(context.Context, *connect.Request[proto.ListRequest]) (*connect.Response[proto.ListResponse], error)
+	// VFS: Hierarchical Virtual File System operations
+	Patch(context.Context, *connect.Request[proto.PatchRequest]) (*connect.Response[proto.PatchResponse], error)
+	Find(context.Context, *connect.Request[proto.FindRequest]) (*connect.Response[proto.ListResponse], error)
 }
 
 // NewArtifactServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -156,6 +190,18 @@ func NewArtifactServiceHandler(svc ArtifactServiceHandler, opts ...connect.Handl
 		connect.WithSchema(artifactServiceMethods.ByName("List")),
 		connect.WithHandlerOptions(opts...),
 	)
+	artifactServicePatchHandler := connect.NewUnaryHandler(
+		ArtifactServicePatchProcedure,
+		svc.Patch,
+		connect.WithSchema(artifactServiceMethods.ByName("Patch")),
+		connect.WithHandlerOptions(opts...),
+	)
+	artifactServiceFindHandler := connect.NewUnaryHandler(
+		ArtifactServiceFindProcedure,
+		svc.Find,
+		connect.WithSchema(artifactServiceMethods.ByName("Find")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/artifact.v1.ArtifactService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ArtifactServiceWriteProcedure:
@@ -166,6 +212,10 @@ func NewArtifactServiceHandler(svc ArtifactServiceHandler, opts ...connect.Handl
 			artifactServiceDeleteHandler.ServeHTTP(w, r)
 		case ArtifactServiceListProcedure:
 			artifactServiceListHandler.ServeHTTP(w, r)
+		case ArtifactServicePatchProcedure:
+			artifactServicePatchHandler.ServeHTTP(w, r)
+		case ArtifactServiceFindProcedure:
+			artifactServiceFindHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -189,4 +239,12 @@ func (UnimplementedArtifactServiceHandler) Delete(context.Context, *connect.Requ
 
 func (UnimplementedArtifactServiceHandler) List(context.Context, *connect.Request[proto.ListRequest]) (*connect.Response[proto.ListResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("artifact.v1.ArtifactService.List is not implemented"))
+}
+
+func (UnimplementedArtifactServiceHandler) Patch(context.Context, *connect.Request[proto.PatchRequest]) (*connect.Response[proto.PatchResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("artifact.v1.ArtifactService.Patch is not implemented"))
+}
+
+func (UnimplementedArtifactServiceHandler) Find(context.Context, *connect.Request[proto.FindRequest]) (*connect.Response[proto.ListResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("artifact.v1.ArtifactService.Find is not implemented"))
 }

@@ -1,5 +1,8 @@
 # mlcartifact - Der gemeinsame Speicher für MCP-Ökosysteme
 
+> **[mlcgo.eu](https://mlcgo.eu)** — Werkzeuge, Bibliotheken und Handbücher · [Produktseite](https://mlcgo.eu/products/mlcartifact/)
+
+
 > **Große Daten gehören nicht in den LLM-Kontext.** Lass MCP-Server Dateien direkt in einen gemeinsamen Speicher schreiben und nur eine ID austauschen. Das LLM orchestriert - ohne die Rohdaten je zu sehen.
 
 ![mlcartifact Architecture](docs/how_it_works.png)

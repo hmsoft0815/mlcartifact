@@ -1,5 +1,8 @@
 # mlcartifact - The Shared Memory Layer for MCP Ecosystems
 
+> **[mlcgo.eu](https://mlcgo.eu)** — tools, libraries and manuals · [Product page](https://mlcgo.eu/products/mlcartifact/)
+
+
 > **Don't route large data through the LLM.** Let MCP servers write files to a shared store and exchange only an ID. The LLM decides what to do next - without ever seeing the raw data.
 
 ![mlcartifact Architecture](docs/how_it_works.png)

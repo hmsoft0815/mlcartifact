@@ -267,6 +267,12 @@ Oder spezifische Beispiele ausführen:
 - [x] **Rust SDK** (Tonic-basiert)
 - [ ] **Web Dashboard** - Artefakte im Browser verwalten
 
+## Referenz
+
+Das **[MCP-Handbuch](https://mlcgo.eu/books/mcp-handbuch/)** erklärt das Model Context Protocol von Grund auf —
+Tools, Resources, Prompts, Transporte, Sicherheit und das Artifact-Pattern.
+Auf Deutsch und Englisch.
+
 ---
 
 ## Lizenz

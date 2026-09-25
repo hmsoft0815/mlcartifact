@@ -5,7 +5,9 @@ version: 2
 
 before:
   hooks:
-    - go mod tidy
+    # Nur pruefen, nicht aendern: ein aenderndes "go mod tidy" macht den Baum
+    # dirty, und GoReleaser bricht dann ab — so sind v0.4.1–v0.4.3 gescheitert.
+    - go mod tidy -diff
 
 builds:
   - id: artifact-server
@@ -14,7 +16,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -X main.version=\{{.Version}}
+      - -X main.version={{.Version}}
     goos:
       - linux
       - windows
@@ -29,7 +31,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -X main.version=\{{.Version}}
+      - -X main.version={{.Version}}
     goos:
       - linux
       - windows
@@ -49,10 +51,6 @@ archives:
       - LICENSE
       - README.md
       - README.de.md
-      - src: client-ts/dist/**/*
-        dst: client-ts
-      - src: client-ts/package.json
-        dst: client-ts/package.json
 
 checksum:
   name_template: "checksums.txt"

@@ -99,8 +99,16 @@ func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteR
 
 // List returns a paginated list of artifacts or a virtual directory listing.
 func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	slog.Info("gRPC List request", "user_id", req.UserId, "vdir", req.DirPath)
-	items, err := s.Store.List(req.UserId, int(req.Limit), int(req.Offset), req.DirPath)
+	slog.Info("gRPC List request", "user_id", req.UserId, "vdir", req.DirPath, "source", req.Source)
+	var items []*storage.ArtifactMetadata
+	var err error
+	if req.Source == "" {
+		items, err = s.Store.List(req.UserId, int(req.Limit), int(req.Offset), req.DirPath)
+	} else {
+		// The store knows nothing about sources, so filter here and paginate afterwards.
+		items, err = s.Store.List(req.UserId, 0, 0, req.DirPath)
+		items = paginate(filterSource(items, req.Source), int(req.Limit), int(req.Offset))
+	}
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list artifacts: %w", err))
 	}
@@ -164,4 +172,27 @@ func (s *Server) Find(ctx context.Context, req *pb.FindRequest) (*pb.ListRespons
 	}
 
 	return &pb.ListResponse{Items: pbItems}, nil
+}
+
+// filterSource keeps the artifacts written by source. Directory entries have
+// no source and are always kept, so a VFS listing stays navigable.
+func filterSource(items []*storage.ArtifactMetadata, source string) []*storage.ArtifactMetadata {
+	var out []*storage.ArtifactMetadata
+	for _, it := range items {
+		if it.Source == source || it.MimeType == "directory" {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+func paginate(items []*storage.ArtifactMetadata, limit, offset int) []*storage.ArtifactMetadata {
+	if offset >= len(items) {
+		return nil
+	}
+	end := len(items)
+	if limit > 0 && offset+limit < end {
+		end = offset + limit
+	}
+	return items[offset:end]
 }

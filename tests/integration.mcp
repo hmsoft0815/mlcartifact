@@ -1,0 +1,74 @@
+// Integrationstest für artifact-server — jedes Tool mit jedem Parameter.
+// Aufruf: task test:integration
+
+echo "--- write_artifact: alle Parameter ---"
+call_tool write_artifact filename:"report.md" virtual_path:"/it/docs/report.md" mime_type:"text/markdown" description:"Integrationstest" expires_in_hours:2 metadata:'{"quelle":"integration"}' user_id:"alice" <<EOF
+Zeile0
+Zeile1
+Zeile2
+EOF
+set_var id $.id
+assert_contains "text/markdown"
+assert_contains "<file id="
+set_var vpath $.virtual_path
+assert_equals $vpath "/it/docs/report.md"
+
+echo "--- write_artifact: nur Pflichtfelder, anderer Nutzer ---"
+call_tool write_artifact filename:"notes.txt" content:"nur fuer bob"
+assert_contains "notes.txt"
+
+echo "--- read_artifact: per ID und per Pfad, mit user_id ---"
+call_tool read_artifact id:$id user_id:"alice"
+assert_contains "Zeile1"
+call_tool read_artifact id:"/it/docs/report.md" user_id:"alice"
+assert_contains "Zeile2"
+
+echo "--- user_id trennt die Bereiche ---"
+expect_error call_tool read_artifact id:"/it/docs/report.md"
+assert_tool_error
+
+echo "--- vfs_patch: Zeile 1 ersetzen (line_end exklusiv), dann anhängen ---"
+call_tool vfs_patch id:"/it/docs/report.md" content:"ERSETZT" line_start:1 line_end:2 user_id:"alice"
+set_var ok $.success
+assert_equals $ok "true"
+call_tool vfs_patch id:$id append:true user_id:"alice" <<EOF
+
+Angehaengt
+EOF
+// "Zeile0\nERSETZT\nZeile2\nAngehaengt" = 32 Byte; 39 hiesse: Zeile1 nicht ersetzt
+set_var size $.new_size
+assert_equals $size "32"
+call_tool read_artifact id:$id user_id:"alice"
+assert_contains "ERSETZT"
+assert_contains "Angehaengt"
+
+echo "--- vfs_ls ---"
+call_tool vfs_ls path:"/it/docs" user_id:"alice"
+assert_contains "report.md"
+
+echo "--- vfs_find ---"
+call_tool vfs_find pattern:"*.md" user_id:"alice"
+set_var n $.count
+assert_equals $n "1"
+
+echo "--- list_artifacts ---"
+call_tool list_artifacts user_id:"alice"
+assert_contains "report.md"
+call_tool list_artifacts
+assert_contains "notes.txt"
+
+echo "--- delete_artifact ---"
+call_tool delete_artifact id:$id user_id:"alice"
+set_var del $.deleted
+assert_equals $del "true"
+expect_error call_tool delete_artifact id:$id user_id:"alice"
+assert_tool_error
+assert_contains "not found"
+
+echo "--- Fehlerfälle ---"
+expect_error call_tool read_artifact id:"/gibt/es/nicht"
+assert_tool_error
+expect_error call_tool_raw write_artifact '{"filename":"x.txt"}'
+assert_tool_error
+expect_error call_tool write_artifact filename:"leer.txt" content:""
+assert_tool_error

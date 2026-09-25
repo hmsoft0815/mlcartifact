@@ -29,3 +29,7 @@ client-rust/target/
 __pycache__/
 *.pyc
 *.egg-info/
+
+# Lokale Agent-/Werkzeug-Konfiguration (nur in lokalen Repos einchecken)
+.mcp.json
+cbm.yaml

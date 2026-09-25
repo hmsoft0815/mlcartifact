@@ -81,21 +81,19 @@ proto-go:
 		artifact.proto
 
 proto-ts:
-	@echo "Checking TypeScript generate script in client-ts..."
 	cd client-ts && npm run generate
 
 proto-python:
 	mkdir -p client-python/mlcartifact/gen
 	python3 -m grpc_tools.protoc -I proto --python_out=client-python/mlcartifact/gen \
-		--grpc_python_out=client-python/mlcartifact/gen \
+		--pyi_out=client-python/mlcartifact/gen \
 		proto/artifact.proto
 	touch client-python/mlcartifact/gen/__init__.py
 
 # TypeScript Client Distribution Build
 dist-ts:
 	@echo "Building TypeScript Universal Library (ES6+)..."
-	cd client-ts && npm install
-	cd client-ts && npm run generate
+	cd client-ts && npm ci
 	cd client-ts && npm run build
 	@echo "Build complete. Artifacts are in client-ts/dist/"
 
@@ -132,7 +130,7 @@ help:
 	@echo "  proto         - Regenerate all Protobuf/Connect files"
 	@echo "  dist-ts       - Build the universal TypeScript ES6+ library"
 	@echo "  run-server    - Run server in stdio mode"
-	@echo "  run-server-sse - Run server in SSE mode on :8082"
+	@echo "  run-server-sse - Run server in HTTP mode on :8082 (/mcp, /sse)"
 	@echo "  run-example-go     - Run the Go client example"
 	@echo "  run-example-python - Run the Python client example"
 	@echo "  run-example-ts     - Run the TypeScript client example"

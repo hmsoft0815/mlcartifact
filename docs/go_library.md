@@ -105,17 +105,50 @@ c.Write(ctx, "private.txt", data, client.WithUserID("user_123"))
 c.Read(ctx, "private.txt", client.WithReadUserID("user_123"))
 ```
 
-### Error Handling
+### Virtual File System (VFS)
 
-The client returns standard gRPC errors. Use the `google.golang.org/grpc/status` package to check for specific error codes like `NotFound`.
+Artifacts can be stored under a hierarchical virtual path and then addressed by that path instead of their ID. Paths always start with `/`; directories are created implicitly.
 
 ```go
-import "google.golang.org/grpc/status"
-import "google.golang.org/grpc/codes"
+// Store under a path
+c.Write(ctx, "notes.md", data, client.WithVirtualPath("/projects/alpha/notes.md"))
+
+// Read, patch and delete by path
+c.Read(ctx, "/projects/alpha/notes.md")
+
+// List one directory: files and sub-directories (IsDirectory) directly below it
+dir, _ := c.List(ctx, "", client.WithDirPath("/projects"))
+
+// Search by glob pattern or keyword
+found, _ := c.Find(ctx, "**/*.md")
+```
+
+### Patching Large Artifacts
+
+`Patch` changes an artifact in place, without sending the whole file again. Lines are 0-based and the end is **exclusive**: `WithLines(2, 4)` replaces lines 2 and 3; `WithLines(n, n)` inserts before line `n`. `WithAppend` adds to the end (no newline is inserted for you).
+
+```go
+c.Patch(ctx, "/projects/alpha/notes.md", []byte("new line 2"), client.WithLines(2, 3))
+c.Patch(ctx, "/projects/alpha/notes.md", []byte("\nappended"), client.WithAppend())
+```
+
+### Filtering Lists
+
+```go
+// Only artifacts written by one source (see ARTIFACT_SOURCE / WithSource)
+res, _ := c.List(ctx, "", client.WithSourceFilter("d2mcp"), client.WithLimit(20))
+```
+
+### Error Handling
+
+The client speaks the Connect protocol, so errors are `*connect.Error` values. Use `connect.CodeOf` to check for codes like `NotFound`.
+
+```go
+import "connectrpc.com/connect"
 
 res, err := c.Read(ctx, "non-existent")
 if err != nil {
-    if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+    if connect.CodeOf(err) == connect.CodeNotFound {
         fmt.Println("Artifact not found")
     } else {
         log.Fatal(err)
@@ -129,9 +162,14 @@ The library is designed for testability. You can use `NewClientWithService` to w
 
 ```go
 // In your test file
+// Embedding the interface satisfies it; override only the methods you need.
 type mockService struct {
-    pb.UnimplementedArtifactServiceServer
+    protoconnect.ArtifactServiceClient
     // ... add fields to track calls
+}
+
+func (m *mockService) Write(ctx context.Context, req *connect.Request[pb.WriteRequest]) (*connect.Response[pb.WriteResponse], error) {
+    return connect.NewResponse(&pb.WriteResponse{Id: "test-id"}), nil
 }
 
 func TestMyTool(t *testing.T) {

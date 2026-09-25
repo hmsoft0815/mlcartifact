@@ -17,9 +17,22 @@ It uses the [Connect](https://connectrpc.com/) protocol, which is a slim, type-s
 
 ## Installation
 
+The package is **not published on npm**. Install it from a checkout of the
+repository (the build needs `../proto`, so the whole repo is required):
+
 ```bash
-npm install @hmsoft0815/mlcartifact-client
+git clone https://github.com/hmsoft0815/mlcartifact.git
+cd mlcartifact/client-ts
+npm ci && npm run build        # generates src/gen via buf, compiles to dist/
+
+# in your project: link the local build ...
+npm install /path/to/mlcartifact/client-ts
+# ... or create a tarball and install that
+npm pack                       # -> hmsoft0815-mlcartifact-client-<version>.tgz
 ```
+
+Requires Node.js >= 20 (or any runtime with `fetch`). Code generation uses the
+`@bufbuild/buf` dev dependency; no system `protoc` is needed.
 
 ## Quick Start
 
@@ -31,7 +44,7 @@ async function example() {
   const client = new ArtifactClient();
 
   // 1. Write an artifact
-  // Supports string, Uint8Array, or Blob
+  // Supports string, Uint8Array or Blob
   const writeResp = await client.write('hello.md', '# Hello World', {
     description: 'My first artifact',
     mimeType: 'text/markdown',
@@ -64,6 +77,23 @@ async function example() {
 }
 ```
 
+### Virtual file system (VFS)
+
+```typescript
+// write under a virtual path
+await client.write('readme.md', '# Alpha', { virtualPath: '/projects/alpha/readme.md' });
+
+// read / delete / patch accept the virtual path instead of the ID
+await client.patch('/projects/alpha/readme.md', '\nmore text', { append: true });
+await client.patch('/projects/alpha/readme.md', '# Alpha v2', { lineStart: 0, lineEnd: 1 });
+
+// directory listing (sub-directories have isDirectory === true)
+const dir = await client.list({ dirPath: '/projects' });
+
+// glob / substring search over virtual paths
+const found = await client.find('/projects/*/readme.md');
+```
+
 ## API Reference
 
 ### new ArtifactClient(baseUrl?: string, transport?: Transport)
@@ -72,17 +102,18 @@ Creates a new client.
 - baseUrl: The URL of the artifact server. Defaults to process.env.ARTIFACT_GRPC_ADDR or http://localhost:9590.
 - transport: Optional custom Connect transport.
 
-### write(filename: string, content: string | Uint8Array, options?: WriteOptions)
+### write(filename: string, content: string | Uint8Array | Blob, options?: WriteOptions)
 
-Saves an artifact to the store.
+Saves an artifact to the store. Strings are UTF-8 encoded; `Blob` works in browsers and Node.js >= 18.
+- options.virtualPath: Optional VFS path, e.g. `/projects/alpha/readme.md`.
 - options.userId: Scope the artifact to a specific user.
 - options.expiresHours: Number of hours until deletion (default: 24).
 - options.mimeType: Explicitly set MIME type.
 - options.source: Identify the creator of the artifact.
 
-### read(idOrFilename: string, options?: ReadOptions)
+### read(idOrPath: string, options?: ReadOptions)
 
-Retrieves an artifact by ID or original filename.
+Retrieves an artifact by ID, original filename or virtual path (starting with `/`).
 
 ### list(options?: ListOptions)
 
@@ -90,10 +121,23 @@ Returns a list of artifacts.
 - options.limit: Max items to return.
 - options.offset: Pagination offset.
 - options.userId: Filter by user.
+- options.source: Filter by source.
+- options.dirPath: VFS directory listing mode — returns the direct children of that directory.
 
-### delete(idOrFilename: string, options?: DeleteOptions)
+### delete(idOrPath: string, options?: DeleteOptions)
 
-Permanently removes an artifact.
+Permanently removes an artifact (by ID, filename or virtual path).
+
+### patch(idOrPath: string, content: string | Uint8Array | Blob, options?: PatchOptions)
+
+Modifies an artifact in place.
+- options.append: Append `content` to the end.
+- options.lineStart / options.lineEnd: Otherwise replace the 0-based line range `[lineStart, lineEnd)` with `content` (defaults: 0 / lineStart, i.e. insert).
+- options.userId: Scope to a user.
+
+### find(pattern: string, options?: FindOptions)
+
+Finds artifacts whose virtual path matches a glob pattern (plain substrings match case-insensitively). Returns a `ListResponse`.
 
 ## Environment Variables (Node.js)
 

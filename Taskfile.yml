@@ -49,6 +49,17 @@ tasks:
     cmds:
       - go test ./...
 
+  test:integration:
+    desc: Run the built server through mcp-tester (every tool, every parameter)
+    deps: [build-server]
+    cmds:
+      - |
+        command -v mcp-tester >/dev/null 2>&1 || \
+          go install github.com/hmsoft0815/mlc_mcptester/cmd/mcp-tester@latest
+        DATA=$(mktemp -d)
+        trap 'rm -rf "$DATA"' EXIT
+        mcp-tester test -c "{{.SERVER_BIN}} -data-dir $DATA -grpc-addr 127.0.0.1:0" --script tests/integration.mcp
+
   test-verbose:
     desc: Run all tests with verbose output
     cmds:
@@ -83,7 +94,7 @@ tasks:
       - go run ./cmd/artifact-server
 
   run-server-sse:
-    desc: Run artifact-server in SSE mode on :8082
+    desc: Run artifact-server in HTTP mode on :8082 (Streamable HTTP /mcp, SSE /sse)
     cmds:
       - go run ./cmd/artifact-server -addr :8082 -grpc-addr :9590
 
@@ -103,17 +114,22 @@ tasks:
           --connect-go_out=. --connect-go_opt=paths=source_relative
           artifact.proto
 
+  proto-ts:
+    desc: Regenerate TypeScript protobuf files (buf + protoc-gen-es v2, no system protoc needed)
+    dir: client-ts
+    cmds:
+      - npm run generate
+
   proto-python:
-    desc: Regenerate Python protobuf files
+    desc: Regenerate Python protobuf files (needs grpcio-tools >= 1.84, see client-python/pyproject.toml)
     cmds:
       - mkdir -p client-python/mlcartifact/gen
-      - python3 -m grpc_tools.protoc -I proto --python_out=client-python/mlcartifact/gen --grpc_python_out=client-python/mlcartifact/gen proto/artifact.proto
+      - python3 -m grpc_tools.protoc -I proto --python_out=client-python/mlcartifact/gen --pyi_out=client-python/mlcartifact/gen proto/artifact.proto
       - touch client-python/mlcartifact/gen/__init__.py
 
   dist-ts:
     desc: Build the universal TypeScript ES6+ library
     dir: client-ts
     cmds:
-      - npm install
-      - npm run generate
-      - npm run build
+      - npm ci
+      - npm run build  # prebuild runs buf generate

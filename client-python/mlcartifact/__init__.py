@@ -1,4 +1,4 @@
-from .client import ArtifactClient
+from .client import ArtifactClient, ArtifactError
 
-__version__ = "0.3.1"
-__all__ = ["ArtifactClient"]
+__version__ = "0.4.0"
+__all__ = ["ArtifactClient", "ArtifactError"]

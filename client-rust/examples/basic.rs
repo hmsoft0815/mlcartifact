@@ -1,18 +1,23 @@
 use mlcartifact::gen::artifact_service_client::ArtifactServiceClient;
 use mlcartifact::gen::{WriteRequest, ReadRequest, DeleteRequest};
 use tonic::Request;
-use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "http://localhost:9590";
+    // Same variable as the Go, Python and TypeScript clients; accepts ":9590" or "host:9590" too.
+    let addr = match std::env::var("ARTIFACT_GRPC_ADDR") {
+        Ok(a) if a.contains("://") => a,
+        Ok(a) if a.starts_with(':') => format!("http://localhost{a}"),
+        Ok(a) if !a.is_empty() => format!("http://{a}"),
+        _ => "http://localhost:9590".to_string(),
+    };
     println!("Connecting to {}...", addr);
     println!("--- mlcartifact Rust 'Hello World' Example ---");
 
-    let mut client = ArtifactServiceClient::connect(addr).await?;
+    let mut client = ArtifactServiceClient::connect(addr.clone()).await?;
 
     // 1. Write 3 artifacts
-    let items = vec![
+    let items = [
         ("artifact1.txt", b"Content for artifact A"),
         ("artifact2.txt", b"Content for artifact B"),
         ("artifact3.txt", b"Content for artifact C"),
@@ -26,9 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             mime_type: "text/plain".into(),
             expires_hours: 1,
             source: "rust-example".into(),
-            metadata: HashMap::new(),
-            user_id: "".into(),
             description: format!("Created by Rust example: {}", name),
+            ..Default::default()
         });
 
         let response = client.write(request).await?.into_inner();

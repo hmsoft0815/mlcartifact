@@ -206,6 +206,44 @@ func (c *Client) Delete(ctx context.Context, idOrFilename string, opts ...Delete
 	return res.Msg, nil
 }
 
+// Patch modifies an artifact in place: it replaces the lines selected with
+// [WithLines] with content, or appends content when [WithAppend] is given.
+// It is much cheaper than rewriting a large artifact with [Client.Write].
+func (c *Client) Patch(ctx context.Context, idOrPath string, content []byte, opts ...PatchOption) (*pb.PatchResponse, error) {
+	req := &pb.PatchRequest{
+		Id:      idOrPath,
+		Content: content,
+		UserId:  os.Getenv("ARTIFACT_USER_ID"),
+	}
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	res, err := c.cli.Patch(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// Find searches artifacts whose virtual path matches a glob pattern
+// (e.g. "**/logs/*.txt") or contains a keyword.
+func (c *Client) Find(ctx context.Context, pattern string, opts ...FindOption) (*pb.ListResponse, error) {
+	req := &pb.FindRequest{
+		Pattern: pattern,
+		UserId:  os.Getenv("ARTIFACT_USER_ID"),
+	}
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	res, err := c.cli.Find(ctx, connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
 // WriteOption is a functional option for configuring Write requests.
 type WriteOption func(*pb.WriteRequest)
 
@@ -251,6 +289,15 @@ func WithDescription(d string) WriteOption {
 	}
 }
 
+// WithVirtualPath stores the artifact under a hierarchical path
+// (e.g. "/projects/alpha/readme.md"). It can then be read, patched and
+// deleted by that path instead of its ID.
+func WithVirtualPath(p string) WriteOption {
+	return func(r *pb.WriteRequest) {
+		r.VirtualPath = p
+	}
+}
+
 // ReadOption is a functional option for configuring Read requests.
 type ReadOption func(*pb.ReadRequest)
 
@@ -285,12 +332,63 @@ func WithListUserID(id string) ListOption {
 	}
 }
 
+// WithSourceFilter only lists artifacts written by the given source.
+func WithSourceFilter(source string) ListOption {
+	return func(r *pb.ListRequest) {
+		r.Source = source
+	}
+}
+
+// WithDirPath switches List to VFS directory mode: it returns the files and
+// sub-directories directly below dirPath (e.g. "/projects").
+func WithDirPath(dirPath string) ListOption {
+	return func(r *pb.ListRequest) {
+		r.DirPath = dirPath
+	}
+}
+
 // DeleteOption is a functional option for configuring Delete requests.
 type DeleteOption func(*pb.DeleteRequest)
 
 // WithDeleteUserID specifies the user ID for the delete operation.
 func WithDeleteUserID(id string) DeleteOption {
 	return func(r *pb.DeleteRequest) {
+		r.UserId = id
+	}
+}
+
+// PatchOption is a functional option for configuring Patch requests.
+type PatchOption func(*pb.PatchRequest)
+
+// WithLines selects the lines [start, end) to replace (0-based, end exclusive):
+// WithLines(2, 4) replaces lines 2 and 3; start == end inserts before line start.
+func WithLines(start, end int32) PatchOption {
+	return func(r *pb.PatchRequest) {
+		r.LineStart = start
+		r.LineEnd = end
+	}
+}
+
+// WithAppend appends the content to the end of the artifact.
+func WithAppend() PatchOption {
+	return func(r *pb.PatchRequest) {
+		r.Append = true
+	}
+}
+
+// WithPatchUserID specifies the user ID for the patch operation.
+func WithPatchUserID(id string) PatchOption {
+	return func(r *pb.PatchRequest) {
+		r.UserId = id
+	}
+}
+
+// FindOption is a functional option for configuring Find requests.
+type FindOption func(*pb.FindRequest)
+
+// WithFindUserID specifies the user ID for the find operation.
+func WithFindUserID(id string) FindOption {
+	return func(r *pb.FindRequest) {
 		r.UserId = id
 	}
 }

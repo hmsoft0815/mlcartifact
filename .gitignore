@@ -24,3 +24,8 @@ client-ts/src/gen/
 client-ts/examples/node_modules/
 .task/
 client-rust/target/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/

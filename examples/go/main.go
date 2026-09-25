@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path"
 	"time"
 
 	"github.com/hmsoft0815/mlcartifact/client"
@@ -59,7 +60,7 @@ func main() {
 		}
 
 		if !bytes.Equal(res.Content, []byte(items[idx].content)) {
-			log.Fatalf("Content mismatch for %s! Expected '%s', got '%s'", 
+			log.Fatalf("Content mismatch for %s! Expected '%s', got '%s'",
 				items[idx].name, items[idx].content, string(res.Content))
 		}
 		fmt.Printf("Verified: %s (ID: %s) content matches.\n", items[idx].name, ids[idx])
@@ -71,6 +72,38 @@ func main() {
 		log.Fatal("Error: Artifact 2 should have been deleted but was found!")
 	}
 	fmt.Println("Verified: Artifact 2 is indeed gone.")
+
+	// 6. Virtual file system: store by path, patch in place, list and find
+	vpath := fmt.Sprintf("/go-example-%d/docs/readme.md", time.Now().UnixNano())
+	if _, err := c.Write(ctx, "readme.md", []byte("line 1\nline 2\nline 3"), client.WithVirtualPath(vpath)); err != nil {
+		log.Fatalf("Failed to write %s: %v", vpath, err)
+	}
+	// Lines are 0-based, end exclusive: (1, 2) replaces "line 2"
+	if _, err := c.Patch(ctx, vpath, []byte("LINE 2"), client.WithLines(1, 2)); err != nil {
+		log.Fatalf("Failed to patch: %v", err)
+	}
+	res, err := c.Read(ctx, vpath)
+	if err != nil || string(res.Content) != "line 1\nLINE 2\nline 3" {
+		log.Fatalf("Patch result wrong: %q (%v)", res.GetContent(), err)
+	}
+	fmt.Printf("Patched %s: %q\n", vpath, res.Content)
+
+	dir := path.Dir(path.Dir(vpath))
+	listing, err := c.List(ctx, "", client.WithDirPath(dir))
+	if err != nil || len(listing.Items) != 1 || !listing.Items[0].IsDirectory {
+		log.Fatalf("Expected one directory in %s: %v (%v)", dir, listing.GetItems(), err)
+	}
+	fmt.Printf("List %s: %s/ (directory)\n", dir, listing.Items[0].Filename)
+
+	found, err := c.Find(ctx, dir+"/*/*.md")
+	if err != nil || len(found.Items) != 1 {
+		log.Fatalf("Find failed: %v (%v)", found.GetItems(), err)
+	}
+	fmt.Printf("Find %s/*/*.md -> %s\n", dir, found.Items[0].VirtualPath)
+
+	if _, err := c.Delete(ctx, vpath); err != nil {
+		log.Fatalf("Failed to delete %s: %v", vpath, err)
+	}
 
 	fmt.Println("--- Example finished successfully ---")
 }

@@ -1,0 +1,13 @@
+# Code generation for the TypeScript client (protobuf-es v2).
+# protoc-gen-es v2 emits messages AND service descriptors, so
+# protoc-gen-connect-es is no longer needed.
+version: v2
+inputs:
+  - directory: ../proto
+plugins:
+  - local: protoc-gen-es
+    out: src/gen
+    opt:
+      - target=ts
+      - import_extension=js
+clean: true

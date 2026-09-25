@@ -1,13 +1,44 @@
-import { createClient, Client, Transport } from "@connectrpc/connect";
+import { createClient, type Client, type Transport } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
-import { ArtifactService } from "./gen/artifact_connect.js";
-import { WriteRequest, ReadRequest, ListRequest, DeleteRequest, WriteResponse, ReadResponse, ListResponse, DeleteResponse } from "./gen/artifact_pb.js";
-import { WriteOptions, ReadOptions, ListOptions, DeleteOptions } from "./options.js";
+import {
+  ArtifactService,
+  type WriteResponse,
+  type ReadResponse,
+  type ListResponse,
+  type DeleteResponse,
+  type PatchResponse,
+} from "./gen/artifact_pb.js";
+import type {
+  WriteOptions,
+  ReadOptions,
+  ListOptions,
+  DeleteOptions,
+  PatchOptions,
+  FindOptions,
+} from "./options.js";
+
+/** Content accepted by write() and patch(). */
+export type ArtifactContent = Uint8Array | string | Blob;
+
+/** Reads an environment variable in Node.js; returns undefined elsewhere (browser, edge). */
+function env(name: string): string | undefined {
+  return typeof process === "undefined" ? undefined : process.env?.[name];
+}
+
+async function toBytes(content: ArtifactContent): Promise<Uint8Array> {
+  if (typeof content === "string") {
+    return new TextEncoder().encode(content);
+  }
+  if (typeof Blob !== "undefined" && content instanceof Blob) {
+    return new Uint8Array(await content.arrayBuffer());
+  }
+  return content as Uint8Array;
+}
 
 /**
  * Universal Client for the mlcartifact service.
  * Works seamlessly in Browser, Node.js, and Edge environments.
- * 
+ *
  * The client uses the Connect protocol to communicate with the artifact server.
  * It automatically handles environment variables in Node.js environments.
  */
@@ -16,7 +47,7 @@ export class ArtifactClient {
 
   /**
    * Creates a new ArtifactClient.
-   * 
+   *
    * @param baseUrl - The base URL of the artifact server (e.g. 'http://localhost:9590').
    *                  If omitted, it looks for ARTIFACT_GRPC_ADDR env var.
    * @param transport - Optional custom transport. If provided, baseUrl is ignored.
@@ -28,103 +59,119 @@ export class ArtifactClient {
       return;
     }
 
-    // Graceful handling for non-Node environments
-    const envAddr = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_GRPC_ADDR;
-    const url = baseUrl || envAddr || 'http://localhost:9590';
-    
+    const url = baseUrl || env("ARTIFACT_GRPC_ADDR") || "http://localhost:9590";
     // Ensure URL has protocol
-    const finalUrl = url.includes('://') ? url : `http://${url}`;
+    const finalUrl = url.includes("://") ? url : `http://${url}`;
 
-    const defaultTransport = createConnectTransport({
-      baseUrl: finalUrl,
-    });
-
-    this.client = createClient(ArtifactService, defaultTransport);
+    this.client = createClient(ArtifactService, createConnectTransport({ baseUrl: finalUrl }));
   }
 
   /**
    * Writes an artifact to the store.
-   * 
+   *
    * @param filename - The name of the file (e.g. 'result.json').
-   * @param content - The data to store. Can be a string or a Uint8Array.
-   * @param opts - Optional configuration (expiresHours, mimeType, userId, etc.).
-   * @returns A promise resolving to the WriteResponse (includes artifact ID and URI).
+   * @param content - The data to store: string (UTF-8 encoded), Uint8Array or Blob.
+   * @param opts - Optional configuration (virtualPath, expiresHours, mimeType, userId, ...).
+   * @returns A promise resolving to the WriteResponse (includes artifact ID, URI and virtual path).
    */
-  async write(filename: string, content: Uint8Array | string, opts: WriteOptions = {}): Promise<WriteResponse> {
-    const envSource = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_SOURCE;
-    const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;
-
-    const req = new WriteRequest({
+  async write(filename: string, content: ArtifactContent, opts: WriteOptions = {}): Promise<WriteResponse> {
+    return await this.client.write({
       filename,
-      // have to use as Uint8Array<ArrayBuffer> because of the type
-      //  definition in the generated code (UTF8String is not supported)
-      content: (typeof content === 'string' ? 
-        new TextEncoder().encode(content) 
-        : content) as Uint8Array<ArrayBuffer>,
+      content: await toBytes(content),
       mimeType: opts.mimeType,
       expiresHours: opts.expiresHours,
-      source: opts.source || envSource,
+      source: opts.source || env("ARTIFACT_SOURCE"),
       metadata: opts.metadata,
-      userId: opts.userId || envUser,
+      userId: opts.userId || env("ARTIFACT_USER_ID"),
       description: opts.description,
+      virtualPath: opts.virtualPath,
     });
-
-    return await this.client.write(req);
   }
 
   /**
    * Reads an artifact from the store.
-   * 
-   * @param idOrFilename - The unique ID or the filename of the artifact to retrieve.
+   *
+   * @param idOrPath - The artifact ID, filename, or virtual path (starting with '/').
    * @param opts - Optional configuration (userId).
    * @returns A promise resolving to the ReadResponse (includes content and mimeType).
    */
-  async read(idOrFilename: string, opts: ReadOptions = {}): Promise<ReadResponse> {
-    const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;
-
-    const req = new ReadRequest({
-      id: idOrFilename,
-      userId: opts.userId || envUser,
+  async read(idOrPath: string, opts: ReadOptions = {}): Promise<ReadResponse> {
+    return await this.client.read({
+      id: idOrPath,
+      userId: opts.userId || env("ARTIFACT_USER_ID"),
     });
-
-    return await this.client.read(req);
   }
 
   /**
    * Lists artifacts available in the store.
-   * 
-   * @param opts - Optional filters and pagination (limit, offset, userId, source).
+   *
+   * If `dirPath` is set, the server switches to VFS directory listing mode and
+   * returns the direct children of that virtual directory (sub-directories have
+   * `isDirectory === true`).
+   *
+   * @param opts - Optional filters and pagination (dirPath, limit, offset, userId, source).
    * @returns A promise resolving to the ListResponse containing an array of ArtifactInfo.
    */
   async list(opts: ListOptions = {}): Promise<ListResponse> {
-    const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;
-
-    const req = new ListRequest({
+    return await this.client.list({
       source: opts.source,
-      userId: opts.userId || envUser,
+      userId: opts.userId || env("ARTIFACT_USER_ID"),
       limit: opts.limit,
       offset: opts.offset,
+      dirPath: opts.dirPath,
     });
-
-    return await this.client.list(req);
   }
 
   /**
    * Deletes an artifact from the store.
    * This is a permanent operation and cannot be undone.
-   * 
-   * @param idOrFilename - The unique ID or the filename of the artifact to delete.
+   *
+   * @param idOrPath - The artifact ID, filename, or virtual path (starting with '/').
    * @param opts - Optional configuration (userId).
    * @returns A promise resolving to the DeleteResponse (indicates success/failure).
    */
-  async delete(idOrFilename: string, opts: DeleteOptions = {}): Promise<DeleteResponse> {
-    const envUser = typeof process === 'undefined' ? undefined : process.env?.ARTIFACT_USER_ID;
-
-    const req = new DeleteRequest({
-      id: idOrFilename,
-      userId: opts.userId || envUser,
+  async delete(idOrPath: string, opts: DeleteOptions = {}): Promise<DeleteResponse> {
+    return await this.client.delete({
+      id: idOrPath,
+      userId: opts.userId || env("ARTIFACT_USER_ID"),
     });
+  }
 
-    return await this.client.delete(req);
+  /**
+   * Modifies the content of an existing artifact in place.
+   *
+   * - `append: true` appends `content` to the end of the artifact.
+   * - Otherwise the 0-based line range `[lineStart, lineEnd)` is replaced by
+   *   `content` (both default to 0, i.e. insert at the beginning).
+   *
+   * @param idOrPath - The artifact ID or virtual path.
+   * @param content - The content to insert or append.
+   * @param opts - Patch mode (append / lineStart / lineEnd) and userId.
+   * @returns A promise resolving to the PatchResponse (success, new size).
+   */
+  async patch(idOrPath: string, content: ArtifactContent, opts: PatchOptions = {}): Promise<PatchResponse> {
+    return await this.client.patch({
+      id: idOrPath,
+      userId: opts.userId || env("ARTIFACT_USER_ID"),
+      content: await toBytes(content),
+      lineStart: opts.lineStart,
+      lineEnd: opts.lineEnd,
+      append: opts.append,
+    });
+  }
+
+  /**
+   * Finds artifacts whose virtual path matches a glob pattern
+   * (e.g. '/projects/*.md'); plain substrings match case-insensitively.
+   *
+   * @param pattern - Glob pattern or substring.
+   * @param opts - Optional configuration (userId).
+   * @returns A promise resolving to a ListResponse with the matching artifacts.
+   */
+  async find(pattern: string, opts: FindOptions = {}): Promise<ListResponse> {
+    return await this.client.find({
+      pattern,
+      userId: opts.userId || env("ARTIFACT_USER_ID"),
+    });
   }
 }

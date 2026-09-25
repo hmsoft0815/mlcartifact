@@ -7,10 +7,11 @@ license = "MIT"
 authors = ["Michael Lechner"]
 
 [dependencies]
-tonic = "0.12"
-prost = "0.13"
+tonic = "0.14"
+tonic-prost = "0.14"
+prost = "0.14"
 tokio = { version = "1.0", features = ["full"] }
 http = "1.1"
 
 [build-dependencies]
-tonic-build = "0.12"
+tonic-prost-build = "0.14"

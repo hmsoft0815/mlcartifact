@@ -2,6 +2,8 @@ module github.com/hmsoft0815/mlcartifact
 
 go 1.25.0
 
+toolchain go1.25.13
+
 require (
 	connectrpc.com/connect v1.21.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0

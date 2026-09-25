@@ -15,7 +15,7 @@ go.work.sum
 *.log
 .artifacts/
 .artifacts_*/
-artifact-server
+/artifact-server
 
 # TypeScript client
 client-ts/node_modules/

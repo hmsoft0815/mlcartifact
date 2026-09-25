@@ -28,6 +28,14 @@ Stell dir vor: Ein SQL-MCP-Server liefert 50.000 Zeilen zurück. Oder ein Report
 
 ---
 
+## Für wen ist mlcartifact gedacht?
+
+**mlcartifact ist in erster Linie für den Betrieb mit lokalen LLMs gedacht** (etwa über Ollama, llama.cpp oder LM Studio) und für eigene Harnesses. Dort gibt es meist keinen eingebauten Weg, auf dem Werkzeuge Dateien untereinander weiterreichen: Jedes Zwischenergebnis müsste durch den Kontext des Modells, und genau der ist bei lokaler Hardware knapp und langsam.
+
+Professionelle Plattformen wie Claude (Anthropic) oder Gemini (Google) bringen in der Regel einen eigenen, vergleichbaren Mechanismus mit, zum Beispiel eine Sandbox mit Dateisystem oder eine Datei-API. Große Dateien bleiben dort zwischen zwei Tool-Aufrufen außerhalb des Modellkontexts und müssen gar nicht erst über das Netzwerk zum Modell und zurück. Wer eine solche Plattform nutzt, sollte zuerst deren eingebaute Lösung prüfen. mlcartifact lohnt sich dort vor allem dann, wenn eigene MCP-Server über einen gemeinsamen Speicher direkt Daten austauschen sollen.
+
+---
+
 ## Das Muster: MCP-Server tauschen Daten direkt aus
 
 ```
@@ -80,11 +88,14 @@ LLM: "PDF-Server: erstelle aus Artefakt abc123 ein PDF."
 
 | Komponente | Beschreibung |
 |---|---|
-| **`artifact-server`** | MCP + gRPC Server. Speichert und liefert Artefakte. Unterstützt stdio und SSE. |
+| **`artifact-server`** | MCP + gRPC Server. Speichert und liefert Artefakte. MCP über stdio, Streamable HTTP (`/mcp`) und das ältere SSE (`/sse`), Protokoll 2026-07-28, gebaut auf dem offiziellen [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk). |
 | **`artifact-cli`** | Kommandozeilen-Tool zum Hochladen, Herunterladen, Auflisten und Löschen. |
 | **Go-Bibliothek** | `import "github.com/hmsoft0815/mlcartifact/client"` - direkt in jeden MCP-Server einbettbar. |
-| **TypeScript-Client** | `npm install @hmsoft0815/mlcartifact-client` - Universeller Client (Node, Browser, Edge) mittels Connect RPC. |
-| **Rust SDK** | In `client-rust/` verfügbar - gRPC-Client mittels Tonic. |
+| **TypeScript-Client** | In `client-ts/` - universeller Client (Node, Browser, Edge) mittels Connect RPC. Installation: siehe [client-ts/README.de.md](client-ts/README.de.md). |
+| **Python-Client** | In `client-python/` - Connect-Client auf Basis von httpx. |
+| **Rust SDK** | In `client-rust/` - gRPC-Client mittels Tonic. |
+
+Alle vier Clients decken die komplette API ab: Schreiben, Lesen, Auflisten, Löschen und die VFS-Funktionen (virtuelle Pfade, Verzeichnisse, Patch, Suche).
 
 ## Ökosystem & Verwandte Projekte
 
@@ -120,7 +131,7 @@ Vorkompilierte `.deb`, `.rpm` und Binaries unter **[GitHub Releases](https://git
 # stdio-Modus (für Claude Desktop / MCP)
 artifact-server -data-dir ~/mlcartifact/storage
 
-# SSE/HTTP-Modus (für entfernte MCP-Server)
+# HTTP-Modus: Streamable HTTP auf /mcp, älteres SSE auf /sse
 artifact-server -addr :8082 -grpc-addr :9590 -data-dir ~/mlcartifact/storage
 ```
 
@@ -160,16 +171,19 @@ fmt.Println("artifact_id:", resp.Id)
 }
 ```
 
-Oder Verbindung zu einem laufenden Server via SSE:
+Oder Verbindung zu einem laufenden Server über HTTP (der Server muss vorher gestartet sein). Aktuelle Clients nutzen Streamable HTTP; die genauen Schlüssel hängen vom Client ab:
 ```json
 {
   "mcpServers": {
     "mlcartifact": {
-      "sse": { "url": "http://localhost:8082/sse" }
+      "type": "http",
+      "url": "http://localhost:8082/mcp"
     }
   }
 }
 ```
+
+Ältere Clients, die nur SSE sprechen, nutzen weiterhin `http://localhost:8082/sse`.
 
 ---
 
@@ -177,10 +191,15 @@ Oder Verbindung zu einem laufenden Server via SSE:
 
 | Tool | Beschreibung |
 |---|---|
-| `write_artifact` | Datei speichern - liefert eine ID |
-| `read_artifact` | Datei per ID oder Dateiname abrufen |
-| `list_artifacts` | Gespeicherte Artefakte auflisten |
+| `write_artifact` | Datei speichern, optional unter einem `virtual_path` - liefert eine ID und einen `<file>`-Referenz-Tag |
+| `read_artifact` | Datei per ID oder virtuellem Pfad abrufen |
+| `list_artifacts` | Gespeicherte Artefakte auflisten (flach) |
+| `vfs_ls` | Virtuelles Verzeichnis auflisten |
+| `vfs_find` | Per Glob-Muster oder Stichwort suchen |
+| `vfs_patch` | Zeilen ersetzen (`line_start` einschließlich, `line_end` ausschließlich) oder anhängen |
 | `delete_artifact` | Dauerhaft löschen |
+
+Alle Tools außer `read_artifact` liefern strukturierte Ergebnisse mit Output-Schema; Fehler kommen als Tool-Fehler (`isError`). Der Prompt `vfs_usage` erklärt dem Modell das virtuelle Dateisystem.
 
 ---
 
@@ -201,7 +220,7 @@ Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Fl
 
 | Flag | Standard | Beschreibung |
 |---|---|---|
-| `-addr` | _(leer)_ | SSE-Adresse (z. B. `127.0.0.1:8080` für lokal, `:8080` für alle). Leer = stdio-Modus. |
+| `-addr` | _(leer)_ | HTTP-Adresse (z. B. `127.0.0.1:8080` für lokal, `:8080` für alle): Streamable HTTP auf `/mcp`, SSE auf `/sse`. Leer = stdio-Modus. |
 | `-grpc-addr` | `:9590` | gRPC-Adresse (z. B. `127.0.0.1:9590` für lokal, `:9590` für alle). |
 | `-data-dir` | `~/mlcartifact/storage` | Speicherverzeichnis |
 | `-mcp-list-limit` | `100` | Max. Einträge bei `list_artifacts` |
@@ -235,6 +254,7 @@ Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Fl
 
 ```bash
 task test           # alle Tests ausführen
+task test:integration # gebauten Server über mcp-tester fahren (jedes Tool, jeder Parameter)
 task build          # alle Binaries bauen
 task build-server   # nur den Server bauen
 ```
@@ -265,7 +285,7 @@ Oder spezifische Beispiele ausführen:
 ## Roadmap
 
 - [x] **TypeScript / Node.js SDK**
-- [x] **Python SDK** (httpx + connectrpc)
+- [x] **Python SDK** (httpx, Connect-Protokoll)
 - [x] **Docker Image** - vorkonfigurierter Server
 - [x] **Rust SDK** (Tonic-basiert)
 - [ ] **Web Dashboard** - Artefakte im Browser verwalten

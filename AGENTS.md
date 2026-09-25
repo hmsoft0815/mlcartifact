@@ -33,8 +33,6 @@ delete goes through the `mlc-dochub` MCP tools — they stamp the `## 📋 Meta`
 footer, append to the activity log and guard against concurrent edits. Reading
 with a native Read is fine and usually cheaper.
 
-**If the tools are not available to you, read but do not write** — and point the
-user at `task install-all` in the mlcintegration checkout (https://github.com/mlc911/mlcintegration).
 
 The server states its full operating rules on connect (`author=`, `base_modified`,
 which doc serves which purpose). Clients that drop server-level instructions —

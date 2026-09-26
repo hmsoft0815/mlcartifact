@@ -301,3 +301,8 @@ Auf Deutsch und Englisch.
 ## Lizenz
 
 MIT-Lizenz - Copyright (c) 2026 [Michael Lechner](https://github.com/hmsoft0815)
+
+<!-- mlcai-private -->
+## Projektdokumentation (`.mlcai/`)
+
+`.mlcai/` ist ein **privates Git-Submodul**: interne Planung, Backlog und Arbeitsnotizen, gepflegt mit dem MLC Doc Hub. Es ist nicht öffentlich zugänglich — **ohne** `--recurse-submodules` klonen; für den Build wird es nicht gebraucht. Links nach `.mlcai/` funktionieren nur mit Zugriff (`git submodule update --init .mlcai`).

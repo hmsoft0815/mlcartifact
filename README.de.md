@@ -159,7 +159,11 @@ fmt.Println("artifact_id:", resp.Id)
 
 ---
 
-## Claude Desktop Integration
+## Claude Desktop & MCP-Client Integration
+
+### 1. Stdio-Modus (Lokaler Subprozess)
+
+Direkter Aufruf durch den MCP-Client ohne Netzwerkports (kein Token erforderlich):
 
 ```json
 {
@@ -172,19 +176,25 @@ fmt.Println("artifact_id:", resp.Id)
 }
 ```
 
-Oder Verbindung zu einem laufenden Server über HTTP (der Server muss vorher gestartet sein). Aktuelle Clients nutzen Streamable HTTP; die genauen Schlüssel hängen vom Client ab:
+### 2. HTTP-Modus (Mit Authentifizierungs-Token)
+
+Empfohlen für Produktionsumgebungen, Remote-Server oder wenn `-require-token-localhost` aktiv ist:
+
 ```json
 {
   "mcpServers": {
     "mlcartifact": {
       "type": "http",
-      "url": "http://localhost:8082/mcp"
+      "url": "http://localhost:8082/mcp",
+      "headers": {
+        "Authorization": "Bearer <DEIN_TOKEN>"
+      }
     }
   }
 }
 ```
 
-Ältere Clients, die nur SSE sprechen, nutzen weiterhin `http://localhost:8082/sse`.
+> **Hinweis**: Bei lokaler Entwicklung direkt auf `localhost` werden Verbindungen ohne Token standardmäßig akzeptiert (Zero-Config), sofern `-require-token-localhost` **nicht** gesetzt ist. Ältere Clients, die nur SSE sprechen, nutzen `http://localhost:8082/sse`.
 
 ---
 

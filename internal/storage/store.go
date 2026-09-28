@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"os"
 	"path/filepath"
 	"sort"
@@ -749,31 +750,66 @@ func (s *Store) Cleanup() {
 }
 
 // DetectMimeType returns a MIME type string based on the file extension.
-// It supports common types used in LLM and data processing workflows.
+// It supports common types used in LLM and data processing workflows,
+// including documents, data formats, and common image formats.
 func DetectMimeType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
+	// Documents & text
 	case ".md":
 		return "text/markdown"
 	case ".html", ".htm":
 		return "text/html"
 	case ".json":
 		return "application/json"
+	case ".xml":
+		return "application/xml"
+	case ".pdf":
+		return "application/pdf"
 	case ".csv":
 		return "text/csv"
 	case ".txt", ".log":
 		return "text/plain"
-	case ".js":
+	case ".yaml", ".yml":
+		return "text/yaml"
+
+	// Scripts & code
+	case ".js", ".mjs", ".cjs":
 		return "application/javascript"
 	case ".ts":
 		return "application/x-typescript"
+
+	// Image formats
 	case ".png":
 		return "image/png"
 	case ".jpg", ".jpeg":
 		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
 	case ".svg":
 		return "image/svg+xml"
+	case ".bmp":
+		return "image/bmp"
+	case ".ico":
+		return "image/x-icon"
+	case ".tiff", ".tif":
+		return "image/tiff"
+	case ".avif":
+		return "image/avif"
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
+
 	default:
+		if mt := mime.TypeByExtension(ext); mt != "" {
+			if idx := strings.Index(mt, ";"); idx != -1 {
+				mt = strings.TrimSpace(mt[:idx])
+			}
+			return mt
+		}
 		return "application/octet-stream"
 	}
 }

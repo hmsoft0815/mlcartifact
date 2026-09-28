@@ -198,8 +198,40 @@ func TestStore_IndexRebuild(t *testing.T) {
 }
 
 func TestDetectMimeType(t *testing.T) {
+	// Documents & text
 	assert.Equal(t, "text/markdown", DetectMimeType("readme.md"))
+	assert.Equal(t, "text/html", DetectMimeType("index.html"))
+	assert.Equal(t, "text/html", DetectMimeType("page.htm"))
+	assert.Equal(t, "application/json", DetectMimeType("data.json"))
+	assert.Equal(t, "application/xml", DetectMimeType("feed.xml"))
+	assert.Equal(t, "application/pdf", DetectMimeType("document.pdf"))
+	assert.Equal(t, "text/csv", DetectMimeType("table.csv"))
+	assert.Equal(t, "text/plain", DetectMimeType("log.txt"))
+	assert.Equal(t, "text/yaml", DetectMimeType("config.yaml"))
+	assert.Equal(t, "text/yaml", DetectMimeType("config.yml"))
+
+	// Scripts & code
+	assert.Equal(t, "application/javascript", DetectMimeType("app.js"))
+	assert.Equal(t, "application/javascript", DetectMimeType("module.mjs"))
+	assert.Equal(t, "application/javascript", DetectMimeType("common.cjs"))
+	assert.Equal(t, "application/x-typescript", DetectMimeType("types.ts"))
+
+	// Image formats
+	assert.Equal(t, "image/png", DetectMimeType("photo.png"))
+	assert.Equal(t, "image/jpeg", DetectMimeType("photo.jpg"))
+	assert.Equal(t, "image/jpeg", DetectMimeType("photo.jpeg"))
+	assert.Equal(t, "image/gif", DetectMimeType("animation.gif"))
+	assert.Equal(t, "image/webp", DetectMimeType("image.webp"))
 	assert.Equal(t, "image/svg+xml", DetectMimeType("logo.svg"))
+	assert.Equal(t, "image/bmp", DetectMimeType("bitmap.bmp"))
+	assert.Equal(t, "image/x-icon", DetectMimeType("favicon.ico"))
+	assert.Equal(t, "image/tiff", DetectMimeType("scan.tiff"))
+	assert.Equal(t, "image/tiff", DetectMimeType("scan.tif"))
+	assert.Equal(t, "image/avif", DetectMimeType("modern.avif"))
+	assert.Equal(t, "image/heic", DetectMimeType("iphone.heic"))
+	assert.Equal(t, "image/heif", DetectMimeType("iphone.heif"))
+
+	// Fallback
 	assert.Equal(t, "application/octet-stream", DetectMimeType("random.dat"))
 }
 

@@ -5,7 +5,7 @@ BINARY_DIR := ./bin
 VERSION := $(shell cat VERSION 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: all build build-server build-cli test test-all test-go test-ts test-python test-rust test-verbose test-cover lint tidy clean dist-ts proto run-server run-server-sse version-sync version-set help
+.PHONY: all build build-server build-cli test test-all test-go test-ts test-python test-rust test-integration test-verbose test-cover lint tidy clean dist-ts proto run-server run-server-sse version-sync version-set help
 
 all: build
 
@@ -57,6 +57,12 @@ test-python:
 
 test-rust:
 	cd client-rust && cargo test
+
+test-integration: build-server
+	@command -v mcp-tester >/dev/null 2>&1 || go install github.com/hmsoft0815/mlc_mcptester/cmd/mcp-tester@latest
+	@DATA=$$(mktemp -d); \
+	trap 'rm -rf "$$DATA"' EXIT; \
+	mcp-tester test -c "$(BINARY_DIR)/artifact-server -data-dir $$DATA -grpc-addr 127.0.0.1:0" --script tests/integration.mcp
 
 test-verbose:
 	go test -v ./...
@@ -146,6 +152,7 @@ help:
 	@echo "  build         - Build Go server and CLI with version injection"
 	@echo "  test          - Run Go tests"
 	@echo "  test-all      - Run tests for Go, TypeScript, Python, and Rust clients"
+	@echo "  test-integration - Run MCP integration test suite using mcp-tester"
 	@echo "  test-verbose  - Run tests with verbose output"
 	@echo "  test-cover    - Run tests with coverage report"
 	@echo "  lint          - Run golangci-lint"

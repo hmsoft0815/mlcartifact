@@ -100,6 +100,7 @@ All four clients cover the full API: write, read, list, delete and the VFS opera
 ## Ecosystem & Related Projects
 
 - **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - A "Swiss Army Knife" MCP server that can execute JavaScript (TypeScript) scripts stored as artifacts in `mlcartifact`. It allows for dynamic tool execution where the LLM writes a script to the artifact store and `wollmilchsau` executes it in a secure environment.
+- **[mcp-tester](https://github.com/hmsoft0815/mlc_mcptester)** - A CLI testing tool and script runner for MCP servers. Used in `mlcartifact` to integration-test every MCP tool and parameter with declarative assertions.
 
 ---
 
@@ -284,13 +285,37 @@ All clients automatically check the `ARTIFACT_GRPC_TOKEN` (or `ARTIFACT_TOKEN`) 
 
 ---
 
-## Development
+## Development & Testing
 
 ```bash
-task test         # run all tests
-task test:integration # drive the built server through mcp-tester (every tool, every parameter)
-task build        # build all binaries
-task build-server # server only
+# Run unit tests across all components (Go, TS, Python, Rust)
+task test:all             # or: make test-all
+
+# Run integration tests with mcp-tester
+task test:integration     # or: make test-integration
+
+# Build binaries
+task build                # or: make build
+```
+
+### MCP Server Integration Testing with `mcp-tester`
+
+The MCP server implementation is thoroughly tested against the MCP specification and tool contracts using **[mcp-tester](https://github.com/hmsoft0815/mlc_mcptester)** (tested against **v1.6.2**).
+
+- **Test Suite**: [`tests/integration.mcp`](tests/integration.mcp)
+- **Score**: **54 / 54 assertions passed (100% pass rate, 0 failed)**
+- **Coverage**:
+  - All 7 MCP tools: `write_artifact`, `read_artifact`, `list_artifacts`, `vfs_ls`, `vfs_find`, `vfs_patch`, `delete_artifact`
+  - Every required and optional parameter (`virtual_path`, `mime_type`, `description`, `expires_in_hours`, `metadata`, `user_id`, `line_start`, `line_end`, `append`)
+  - Multi-user / multi-tenant data isolation (`user_id` separation between users)
+  - VFS line patching (precise line replacement and append mode)
+  - Negative tests and error handling (missing required fields, empty payloads, invalid IDs/paths)
+
+Run the integration test suite:
+```bash
+task test:integration
+# or
+make test-integration
 ```
 
 ---

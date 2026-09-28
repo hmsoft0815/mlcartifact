@@ -100,6 +100,7 @@ Alle vier Clients decken die komplette API ab: Schreiben, Lesen, Auflisten, Lös
 ## Ökosystem & Verwandte Projekte
 
 - **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - Ein „Eierlegende-Wollmilchsau“-MCP-Server, der JavaScript- bzw. TypeScript-Skripte ausführen kann, die als Artefakte in `mlcartifact` gespeichert sind. Dies ermöglicht dynamische Tool-Ausführung, bei der das LLM ein Skript in den Artefakt-Speicher schreibt und `wollmilchsau` es in einer sicheren Umgebung ausführt.
+- **[mcp-tester](https://github.com/hmsoft0815/mlc_mcptester)** - Ein CLI-Testwerkzeug und Skript-Runner für MCP-Server. Wird in `mlcartifact` eingesetzt, um jedes MCP-Tool und jeden Parameter mit deklarativen Assertions integrativ zu testen.
 
 ---
 
@@ -283,13 +284,37 @@ Alle Clients werten automatisch die Umgebungsvariable `ARTIFACT_GRPC_TOKEN` (ode
 
 ---
 
-## Entwicklung
+## Entwicklung & Tests
 
 ```bash
-task test           # alle Tests ausführen
-task test:integration # gebauten Server über mcp-tester fahren (jedes Tool, jeder Parameter)
-task build          # alle Binaries bauen
-task build-server   # nur den Server bauen
+# Unit-Tests für alle Komponenten (Go, TS, Python, Rust) ausführen
+task test:all             # oder: make test-all
+
+# Integrationstests mit mcp-tester ausführen
+task test:integration     # oder: make test-integration
+
+# Binaries kompilieren
+task build                # oder: make build
+```
+
+### MCP-Server Integrationstests mit `mcp-tester`
+
+Die MCP-Server-Implementierung wird kontinuierlich und vollständig mit **[mcp-tester](https://github.com/hmsoft0815/mlc_mcptester)** (getestet gegen **v1.6.2**) auf Protokoll- und Verhaltenskonformität geprüft:
+
+- **Test-Skript**: [`tests/integration.mcp`](tests/integration.mcp)
+- **Score / Ergebnis**: **54 von 54 Prüfungen bestanden (100% Erfolgsquote, 0 Fehler)**
+- **Abdeckung**:
+  - Alle 7 MCP-Tools: `write_artifact`, `read_artifact`, `list_artifacts`, `vfs_ls`, `vfs_find`, `vfs_patch`, `delete_artifact`
+  - Sämtliche Pflicht- und optionalen Parameter (`virtual_path`, `mime_type`, `description`, `expires_in_hours`, `metadata`, `user_id`, `line_start`, `line_end`, `append`)
+  - Mandanten- und Benutzerisolation (`user_id`-Trennung zwischen verschiedenen Benutzern)
+  - VFS-Line-Patching (zeilenweises Ersetzen mit `line_start`/`line_end` und Anhängen mit `append`)
+  - Fehlerbehandlung und Schema-Validierung (fehlende Pflichtfelder, leere Inhalte, unbekannte IDs/Pfade)
+
+Integrationstests ausführen:
+```bash
+task test:integration
+# oder
+make test-integration
 ```
 
 ---

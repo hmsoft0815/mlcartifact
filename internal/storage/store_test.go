@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -200,4 +201,97 @@ func TestDetectMimeType(t *testing.T) {
 	assert.Equal(t, "text/markdown", DetectMimeType("readme.md"))
 	assert.Equal(t, "image/svg+xml", DetectMimeType("logo.svg"))
 	assert.Equal(t, "application/octet-stream", DetectMimeType("random.dat"))
+}
+
+func TestStore_UserIDValidation_Security(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "artifact-sec-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	store := NewStore(tempDir)
+
+	// Valid user IDs
+	validIDs := []string{"", "u1", "user-123", "User_456", "550e8400-e29b-41d4-a716-446655440000"}
+	for _, id := range validIDs {
+		assert.NoError(t, ValidateUserID(id), "expected %q to be valid", id)
+	}
+
+	// Invalid user IDs (traversal, paths, illegal chars)
+	invalidIDs := []string{
+		"..",
+		".",
+		"../outside",
+		"../../outside",
+		"/root",
+		`\windows`,
+		"user/sub",
+		`user\sub`,
+		"user id",
+		"user\x00id",
+		"user.name",
+		strings.Repeat("a", 129),
+	}
+	for _, id := range invalidIDs {
+		assert.ErrorIs(t, ValidateUserID(id), ErrInvalidUserID, "expected %q to be invalid", id)
+	}
+
+	// Verify all operations reject traversal user IDs
+	badUser := "../../traversal"
+
+	// 1. Write
+	_, err = store.Write("evil.txt", []byte("evil"), "", 1, "test", badUser, "", nil, "")
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+	// Ensure no file was written outside baseDir
+	_, err = os.Stat(filepath.Join(tempDir, "..", "traversal"))
+	assert.True(t, os.IsNotExist(err), "directory should not be created outside baseDir")
+
+	// 2. Read
+	_, _, err = store.Read("any-id", badUser)
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+
+	// 3. List
+	_, err = store.List(badUser, 10, 0, "")
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+
+	// 4. ListVFS
+	_, err = store.List(badUser, 10, 0, "/")
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+
+	// 5. Patch
+	_, err = store.Patch("any-id", badUser, []byte("x"), 0, 0, true)
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+
+	// 6. Delete
+	_, err = store.Delete("any-id", badUser)
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+
+	// 7. Find
+	_, err = store.Find(badUser, "*")
+	assert.ErrorIs(t, err, ErrInvalidUserID)
+}
+
+func TestStore_NonExistentUser_NoErrorLeak(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "artifact-leak-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	store := NewStore(tempDir)
+	nonExistentUser := "user-does-not-exist"
+
+	// Read should return ErrArtifactNotFound, NOT os.PathError
+	_, _, err = store.Read("missing-artifact", nonExistentUser)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrArtifactNotFound)
+	assert.NotContains(t, err.Error(), tempDir, "error message must not contain server base directory")
+	assert.NotContains(t, err.Error(), "no such file or directory")
+
+	// Delete should return false, nil
+	deleted, err := store.Delete("missing-artifact", nonExistentUser)
+	require.NoError(t, err)
+	assert.False(t, deleted)
+
+	// List should return empty slice, nil
+	items, err := store.List(nonExistentUser, 10, 0, "")
+	require.NoError(t, err)
+	assert.Empty(t, items)
 }

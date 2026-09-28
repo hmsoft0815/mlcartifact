@@ -11,6 +11,7 @@ package storage
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,17 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+)
+
+var (
+	// ErrInvalidUserID is returned when a userID contains illegal characters, path separators, or exceeds max length.
+	ErrInvalidUserID = errors.New("invalid user_id: must contain only alphanumeric characters, dashes, and underscores (max 128 characters)")
+
+	// ErrArtifactNotFound is returned when the requested artifact does not exist.
+	ErrArtifactNotFound = errors.New("artifact not found")
+
+	// ErrPathEscape is returned when a storage path attempts to escape the store's base directory.
+	ErrPathEscape = errors.New("invalid path: path escapes base directory")
 )
 
 // utf8Valid reports whether s is a valid UTF-8 string.
@@ -81,6 +93,9 @@ func (s *Store) rebuildIndex() {
 		if err := json.Unmarshal(data, &meta); err == nil {
 			if meta.VirtualPath != "" {
 				uID := meta.UserID
+				if uID != "" && ValidateUserID(uID) != nil {
+					return nil
+				}
 				if uID == "" {
 					uID = "global"
 				}
@@ -92,6 +107,55 @@ func (s *Store) rebuildIndex() {
 		}
 		return nil
 	})
+}
+
+// ValidateUserID checks that a userID contains only allowed characters ([A-Za-z0-9_-])
+// and does not exceed a maximum length of 128 characters.
+// An empty userID is allowed and represents the global scope.
+func ValidateUserID(userID string) error {
+	if userID == "" {
+		return nil
+	}
+	if len(userID) > 128 {
+		return ErrInvalidUserID
+	}
+	for i := 0; i < len(userID); i++ {
+		c := userID[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
+			continue
+		}
+		return ErrInvalidUserID
+	}
+	return nil
+}
+
+// userDir resolves and validates the directory path for a given userID.
+// It enforces that userID is valid and that the target directory lies strictly within BaseDir.
+func (s *Store) userDir(userID string) (string, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return "", err
+	}
+
+	cleanBase, err := filepath.Abs(s.BaseDir)
+	if err != nil {
+		cleanBase = filepath.Clean(s.BaseDir)
+	}
+
+	var targetDir string
+	if userID == "" {
+		targetDir = filepath.Join(cleanBase, "global")
+	} else {
+		targetDir = filepath.Join(cleanBase, "users", userID)
+	}
+	targetDir = filepath.Clean(targetDir)
+
+	// Second line of defense: verify targetDir is strictly within cleanBase
+	rel, err := filepath.Rel(cleanBase, targetDir)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", ErrPathEscape
+	}
+
+	return targetDir, nil
 }
 
 // NormalizePath ensures a path starts with / and is cleaned.
@@ -124,10 +188,9 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 		return nil, fmt.Errorf("failed to create base directory: %w", err)
 	}
 
-	// 1. Determine storage prefix (global vs user)
-	prefixDir := filepath.Join(s.BaseDir, "global")
-	if userID != "" {
-		prefixDir = filepath.Join(s.BaseDir, "users", userID)
+	prefixDir, err := s.userDir(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := os.MkdirAll(prefixDir, 0755); err != nil {
@@ -140,10 +203,18 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 	id := fmt.Sprintf("%x-%x", time.Now().Unix()%10000, randomID)
 
 	// 3. Paths
-	safeFilename := filepath.Base(filename)
+	safeFilename := filepath.Base(strings.ReplaceAll(filename, "\\", "/"))
+	if safeFilename == "." || safeFilename == "/" || safeFilename == "" {
+		safeFilename = "artifact"
+	}
 	storageName := fmt.Sprintf("%s_%s", id, safeFilename)
 	fullPath := filepath.Join(prefixDir, storageName)
 	metaPath := fullPath + ".json"
+
+	relFile, err := filepath.Rel(prefixDir, fullPath)
+	if err != nil || relFile == "." || relFile == ".." || strings.HasPrefix(relFile, ".."+string(filepath.Separator)) {
+		return nil, ErrPathEscape
+	}
 
 	// 4. Expiration
 	if expiresHours <= 0 {
@@ -205,6 +276,10 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 // Read retrieves content and metadata for a given ID, filename, or virtual path.
 // If multiple files match a filename, the newest one (highest ID prefix) is returned.
 func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return nil, nil, err
+	}
+
 	uID := userID
 	if uID == "" {
 		uID = "global"
@@ -224,15 +299,18 @@ func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata,
 		s.mu.RUnlock()
 	}
 
-	prefixDir := filepath.Join(s.BaseDir, "global")
-	if userID != "" {
-		prefixDir = filepath.Join(s.BaseDir, "users", userID)
+	prefixDir, err := s.userDir(userID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Find the file. ID is prefix of storage name: {id}_{filename}
 	files, err := os.ReadDir(prefixDir)
 	if err != nil {
-		return nil, nil, err
+		if os.IsNotExist(err) {
+			return nil, nil, ErrArtifactNotFound
+		}
+		return nil, nil, fmt.Errorf("failed to read storage directory: %w", err)
 	}
 
 	for _, f := range files {
@@ -277,37 +355,47 @@ func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata,
 
 			data, err := os.ReadFile(fullPath)
 			if err != nil {
-				return nil, nil, err
+				if os.IsNotExist(err) {
+					return nil, nil, ErrArtifactNotFound
+				}
+				return nil, nil, fmt.Errorf("failed to read artifact data: %w", err)
 			}
 
 			metaData, err := os.ReadFile(metaPath)
 			if err != nil {
-				return nil, nil, err
+				if os.IsNotExist(err) {
+					return nil, nil, ErrArtifactNotFound
+				}
+				return nil, nil, fmt.Errorf("failed to read artifact metadata: %w", err)
 			}
 
 			var meta ArtifactMetadata
 			if err := json.Unmarshal(metaData, &meta); err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to parse artifact metadata: %w", err)
 			}
 
 			return data, &meta, nil
 		}
 	}
 
-	return nil, nil, fmt.Errorf("artifact not found")
+	return nil, nil, ErrArtifactNotFound
 }
 
 // List returns artifacts for a specific user.
 // If dirPath is empty, it returns a flat list of all artifacts.
 // If dirPath is set, it returns items (files and virtual folders) in that virtual directory.
 func (s *Store) List(userID string, limit, offset int, dirPath string) ([]*ArtifactMetadata, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return nil, err
+	}
+
 	if dirPath != "" {
 		return s.ListVFS(userID, dirPath, limit, offset)
 	}
 
-	prefixDir := filepath.Join(s.BaseDir, "global")
-	if userID != "" {
-		prefixDir = filepath.Join(s.BaseDir, "users", userID)
+	prefixDir, err := s.userDir(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	files, err := os.ReadDir(prefixDir)
@@ -315,7 +403,7 @@ func (s *Store) List(userID string, limit, offset int, dirPath string) ([]*Artif
 		if os.IsNotExist(err) {
 			return []*ArtifactMetadata{}, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to read storage directory: %w", err)
 	}
 
 	var results []*ArtifactMetadata
@@ -350,6 +438,10 @@ func (s *Store) List(userID string, limit, offset int, dirPath string) ([]*Artif
 
 // ListVFS handles hierarchical directory listing using the in-memory index.
 func (s *Store) ListVFS(userID string, dirPath string, limit, offset int) ([]*ArtifactMetadata, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return nil, err
+	}
+
 	uID := userID
 	if uID == "" {
 		uID = "global"
@@ -433,6 +525,10 @@ func (s *Store) ListVFS(userID string, dirPath string, limit, offset int) ([]*Ar
 
 // Find returns all artifacts matching a pattern in their virtual path.
 func (s *Store) Find(userID string, pattern string) ([]*ArtifactMetadata, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return nil, err
+	}
+
 	uID := userID
 	if uID == "" {
 		uID = "global"
@@ -469,6 +565,10 @@ func (s *Store) Find(userID string, pattern string) ([]*ArtifactMetadata, error)
 
 // Patch modifies an existing artifact's content.
 func (s *Store) Patch(idOrPath string, userID string, patchContent []byte, lineStart, lineEnd int, shouldAppend bool) (int64, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return 0, err
+	}
+
 	oldContent, meta, err := s.Read(idOrPath, userID)
 	if err != nil {
 		return 0, err
@@ -512,14 +612,19 @@ func (s *Store) Patch(idOrPath string, userID string, patchContent []byte, lineS
 	}
 
 	// Overwrite existing file
-	prefixDir := filepath.Join(s.BaseDir, "global")
-	if userID != "" {
-		prefixDir = filepath.Join(s.BaseDir, "users", userID)
+	prefixDir, err := s.userDir(userID)
+	if err != nil {
+		return 0, err
 	}
 
 	// We need to find the actual file on disk (ID_Filename)
 	storageName := fmt.Sprintf("%s_%s", meta.ID, meta.Filename)
 	fullPath := filepath.Join(prefixDir, storageName)
+
+	relFile, err := filepath.Rel(prefixDir, fullPath)
+	if err != nil || relFile == "." || relFile == ".." || strings.HasPrefix(relFile, ".."+string(filepath.Separator)) {
+		return 0, ErrPathEscape
+	}
 
 	if err := os.WriteFile(fullPath, newContent, 0644); err != nil {
 		return 0, fmt.Errorf("failed to update data: %w", err)
@@ -531,6 +636,10 @@ func (s *Store) Patch(idOrPath string, userID string, patchContent []byte, lineS
 // Delete removes an artifact and its associated metadata JSON file.
 // Returns true if the artifact was found and deleted, false otherwise.
 func (s *Store) Delete(idOrPath string, userID string) (bool, error) {
+	if err := ValidateUserID(userID); err != nil {
+		return false, err
+	}
+
 	uID := userID
 	if uID == "" {
 		uID = "global"
@@ -552,14 +661,17 @@ func (s *Store) Delete(idOrPath string, userID string) (bool, error) {
 		s.mu.RUnlock()
 	}
 
-	prefixDir := filepath.Join(s.BaseDir, "global")
-	if userID != "" {
-		prefixDir = filepath.Join(s.BaseDir, "users", userID)
+	prefixDir, err := s.userDir(userID)
+	if err != nil {
+		return false, err
 	}
 
 	files, err := os.ReadDir(prefixDir)
 	if err != nil {
-		return false, err
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to read storage directory: %w", err)
 	}
 
 	for _, f := range files {

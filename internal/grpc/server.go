@@ -52,7 +52,11 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 	)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to write artifact: %w", err))
+		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
+		}
+		slog.Error("failed to write artifact", "error", err, "user_id", req.UserId)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to write artifact"))
 	}
 
 	return &pb.WriteResponse{
@@ -70,10 +74,14 @@ func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 
 	content, meta, err := s.Store.Read(req.Id, req.UserId)
 	if err != nil {
-		if err.Error() == "artifact not found" {
+		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
+		}
+		if errors.Is(err, storage.ErrArtifactNotFound) || err.Error() == "artifact not found" {
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
 		}
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to read artifact: %w", err))
+		slog.Error("failed to read artifact", "error", err, "id", req.Id, "user_id", req.UserId)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to read artifact"))
 	}
 
 	return &pb.ReadResponse{
@@ -89,7 +97,11 @@ func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteR
 	slog.Info("gRPC Delete request", "id", req.Id, "user_id", req.UserId)
 	deleted, err := s.Store.Delete(req.Id, req.UserId)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to delete artifact: %w", err))
+		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
+		}
+		slog.Error("failed to delete artifact", "error", err, "id", req.Id, "user_id", req.UserId)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to delete artifact"))
 	}
 	if !deleted {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
@@ -110,7 +122,11 @@ func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespons
 		items = paginate(filterSource(items, req.Source), int(req.Limit), int(req.Offset))
 	}
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list artifacts: %w", err))
+		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
+		}
+		slog.Error("failed to list artifacts", "error", err, "user_id", req.UserId)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list artifacts"))
 	}
 
 	var pbItems []*pb.ArtifactInfo
@@ -136,10 +152,14 @@ func (s *Server) Patch(ctx context.Context, req *pb.PatchRequest) (*pb.PatchResp
 	slog.Info("gRPC Patch request", "id", req.Id, "user_id", req.UserId)
 	newSize, err := s.Store.Patch(req.Id, req.UserId, req.Content, int(req.LineStart), int(req.LineEnd), req.Append)
 	if err != nil {
-		if err.Error() == "artifact not found" {
+		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
+		}
+		if errors.Is(err, storage.ErrArtifactNotFound) || err.Error() == "artifact not found" {
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
 		}
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to patch artifact: %w", err))
+		slog.Error("failed to patch artifact", "error", err, "id", req.Id, "user_id", req.UserId)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to patch artifact"))
 	}
 
 	return &pb.PatchResponse{
@@ -154,7 +174,11 @@ func (s *Server) Find(ctx context.Context, req *pb.FindRequest) (*pb.ListRespons
 	slog.Info("gRPC Find request", "pattern", req.Pattern, "user_id", req.UserId)
 	items, err := s.Store.Find(req.UserId, req.Pattern)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to find artifacts: %w", err))
+		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
+		}
+		slog.Error("failed to find artifacts", "error", err, "user_id", req.UserId)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to find artifacts"))
 	}
 
 	var pbItems []*pb.ArtifactInfo

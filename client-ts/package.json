@@ -1,6 +1,6 @@
 {
   "name": "@hmsoft0815/mlcartifact-client",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Universal TypeScript client for mlcartifact using Connect RPC",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

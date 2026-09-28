@@ -42,16 +42,17 @@ func utf8Valid(s string) bool {
 // ArtifactMetadata contains all descriptive information about a stored file.
 // It is persisted as a companion .json file alongside the actual artifact data.
 type ArtifactMetadata struct {
-	ID          string                 `json:"id"`          // Unique short ID generated at write time
-	Filename    string                 `json:"filename"`    // Original filename provided by the client
+	ID          string                 `json:"id"`                     // Unique short ID generated at write time
+	Filename    string                 `json:"filename"`               // Original filename provided by the client
 	VirtualPath string                 `json:"virtual_path,omitempty"` // Hierarchical path (VFS)
-	MimeType    string                 `json:"mime_type"`   // Detected or provided MIME type
+	MimeType    string                 `json:"mime_type"`              // Detected or provided MIME type
 	Description string                 `json:"description,omitempty"`
 	Source      string                 `json:"source,omitempty"`
-	UserID      string                 `json:"user_id,omitempty"` // Optional owner of the artifact
+	UserID      string                 `json:"user_id,omitempty"`     // Optional owner of the artifact
 	CreatedAt   time.Time              `json:"created_at"`
-	ExpiresAt   time.Time              `json:"expires_at"` // Scheduled deletion time
-	Metadata    map[string]interface{} `json:"metadata,omitempty"` // Arbitrary custom metadata
+	ExpiresAt   time.Time              `json:"expires_at"`            // Scheduled deletion time
+	SizeBytes   int64                  `json:"size_bytes,omitempty"`  // Size in bytes
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`    // Arbitrary custom metadata
 }
 
 // Store handles the persistence of artifacts on the local filesystem.
@@ -249,6 +250,7 @@ func (s *Store) Write(filename string, content []byte, mimeType string, expiresH
 		UserID:      userID,
 		CreatedAt:   time.Now(),
 		ExpiresAt:   expiresAt,
+		SizeBytes:   int64(len(content)),
 		Metadata:    metadata,
 	}
 
@@ -374,6 +376,9 @@ func (s *Store) Read(idOrPath string, userID string) ([]byte, *ArtifactMetadata,
 			if err := json.Unmarshal(metaData, &meta); err != nil {
 				return nil, nil, fmt.Errorf("failed to parse artifact metadata: %w", err)
 			}
+			if meta.SizeBytes == 0 {
+				meta.SizeBytes = int64(len(data))
+			}
 
 			return data, &meta, nil
 		}
@@ -417,6 +422,12 @@ func (s *Store) List(userID string, limit, offset int, dirPath string) ([]*Artif
 
 			var meta ArtifactMetadata
 			if err := json.Unmarshal(metaData, &meta); err == nil {
+				if meta.SizeBytes == 0 {
+					dataPath := filepath.Join(prefixDir, strings.TrimSuffix(f.Name(), ".json"))
+					if fi, err := os.Stat(dataPath); err == nil {
+						meta.SizeBytes = fi.Size()
+					}
+				}
 				results = append(results, &meta)
 			}
 		}
@@ -629,6 +640,13 @@ func (s *Store) Patch(idOrPath string, userID string, patchContent []byte, lineS
 
 	if err := os.WriteFile(fullPath, newContent, 0644); err != nil {
 		return 0, fmt.Errorf("failed to update data: %w", err)
+	}
+
+	// Update metadata with new size
+	meta.SizeBytes = int64(len(newContent))
+	metaPath := fullPath + ".json"
+	if metaBytes, err := json.MarshalIndent(meta, "", "  "); err == nil {
+		_ = os.WriteFile(metaPath, metaBytes, 0644)
 	}
 
 	return int64(len(newContent)), nil

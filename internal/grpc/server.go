@@ -62,7 +62,7 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 	return &pb.WriteResponse{
 		Id:          meta.ID,
 		Filename:    meta.Filename,
-		Uri:         fmt.Sprintf("artifact://%s", meta.Filename),
+		Uri:         fmt.Sprintf("mlcartifact://%s", meta.ID),
 		ExpiresAt:   meta.ExpiresAt.Format(time.RFC3339),
 		VirtualPath: meta.VirtualPath,
 	}, nil
@@ -139,6 +139,7 @@ func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespons
 			UserId:      item.UserID,
 			CreatedAt:   item.CreatedAt.Format(time.RFC3339),
 			ExpiresAt:   item.ExpiresAt.Format(time.RFC3339),
+			SizeBytes:   item.SizeBytes,
 			VirtualPath: item.VirtualPath,
 			IsDirectory: item.MimeType == "directory",
 		})
@@ -191,6 +192,7 @@ func (s *Server) Find(ctx context.Context, req *pb.FindRequest) (*pb.ListRespons
 			UserId:      item.UserID,
 			CreatedAt:   item.CreatedAt.Format(time.RFC3339),
 			ExpiresAt:   item.ExpiresAt.Format(time.RFC3339),
+			SizeBytes:   item.SizeBytes,
 			VirtualPath: item.VirtualPath,
 		})
 	}

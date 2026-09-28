@@ -25,11 +25,14 @@ func main() {
 	if defaultToken == "" {
 		defaultToken = os.Getenv("ARTIFACT_TOKEN")
 	}
+	defaultUser := os.Getenv("ARTIFACT_USER_ID")
 
 	addr := flag.String("addr", defaultAddr, "Artifact server gRPC address")
 	token := flag.String("token", defaultToken, "Authentication token for remote server (default: ARTIFACT_GRPC_TOKEN or ARTIFACT_TOKEN)")
+	user := flag.String("user", defaultUser, "User ID scoping (default: ARTIFACT_USER_ID)")
 	v := flag.Bool("version", false, "Print version and exit")
 
+	flag.Usage = usage
 	flag.Parse()
 
 	if *v {
@@ -51,13 +54,13 @@ func main() {
 	cmd := flag.Arg(0)
 	switch cmd {
 	case "list":
-		handleList(cli, flag.Args()[1:])
+		handleList(cli, flag.Args()[1:], *user)
 	case "delete":
-		handleDelete(cli, flag.Args()[1:])
+		handleDelete(cli, flag.Args()[1:], *user)
 	case "create":
-		handleCreate(cli, flag.Args()[1:])
+		handleCreate(cli, flag.Args()[1:], *user)
 	case "download":
-		handleDownload(cli, flag.Args()[1:])
+		handleDownload(cli, flag.Args()[1:], *user)
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		usage()
@@ -66,27 +69,37 @@ func main() {
 }
 
 func usage() {
-	fmt.Println("Usage: artifact-cli [options] <command> [args]")
-	fmt.Println("Options:")
+	fmt.Println("Usage: artifact-cli [global options] <command> [command options] [args]")
+	fmt.Println()
+	fmt.Println("Global Options:")
 	fmt.Println("  -addr string   gRPC address (default: ARTIFACT_GRPC_ADDR or localhost:9590)")
 	fmt.Println("  -token string  Authentication token for remote server (default: ARTIFACT_GRPC_TOKEN)")
+	fmt.Println("  -user string   Default user ID for operations (default: ARTIFACT_USER_ID)")
+	fmt.Println("  -version       Print version and exit")
+	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  list [--limit N] [--offset M] [--user ID]")
-	fmt.Println("  delete <id> [--user ID]")
-	fmt.Println("  create <file> [--name NAME] [--description DESC] [--user ID] [--expires HOURS]")
+	fmt.Println("  create <file> [--name NAME] [--description DESC] [--user ID] [--expires HOURS] [-q]")
+	fmt.Println("      Uploads a file to the artifact store.")
+	fmt.Println("      -q: Quiet mode, prints only the artifact ID (useful for scripts: ID=$(artifact-cli create -q datei))")
+	fmt.Println()
 	fmt.Println("  download <id/filename> <local-path> [--user ID]")
+	fmt.Println("      Downloads an artifact to a local file. Inherits ARTIFACT_USER_ID or global -user.")
+	fmt.Println()
+	fmt.Println("  list [--limit N] [--offset M] [--user ID]")
+	fmt.Println("      Lists artifacts. Inherits ARTIFACT_USER_ID or global -user.")
+	fmt.Println()
+	fmt.Println("  delete <id> [--user ID]")
+	fmt.Println("      Deletes an artifact permanently. Inherits ARTIFACT_USER_ID or global -user.")
 }
 
-func handleList(cli *client.Client, args []string) {
+func handleList(cli *client.Client, args []string, defaultUser string) {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	limit := fs.Int("limit", 0, "Limit items")
 	offset := fs.Int("offset", 0, "Offset items")
-	user := fs.String("user", "", "Filter by user ID")
+	user := fs.String("user", defaultUser, "Filter by user ID (default: ARTIFACT_USER_ID)")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("Parse error: %v", err)
 	}
-
-	// Request list with optional pagination and user filtering.
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -106,9 +119,9 @@ func handleList(cli *client.Client, args []string) {
 	}
 }
 
-func handleDelete(cli *client.Client, args []string) {
+func handleDelete(cli *client.Client, args []string, defaultUser string) {
 	fs := flag.NewFlagSet("delete", flag.ExitOnError)
-	user := fs.String("user", "", "Scope to user ID")
+	user := fs.String("user", defaultUser, "Scope to user ID (default: ARTIFACT_USER_ID)")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("Parse error: %v", err)
 	}
@@ -121,19 +134,25 @@ func handleDelete(cli *client.Client, args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := cli.Delete(ctx, id, client.WithDeleteUserID(*user))
+	var opts []client.DeleteOption
+	if *user != "" {
+		opts = append(opts, client.WithDeleteUserID(*user))
+	}
+
+	_, err := cli.Delete(ctx, id, opts...)
 	if err != nil {
 		log.Fatalf("Delete failed: %v", err)
 	}
 	fmt.Println("Successfully deleted artifact:", id)
 }
 
-func handleCreate(cli *client.Client, args []string) {
+func handleCreate(cli *client.Client, args []string, defaultUser string) {
 	fs := flag.NewFlagSet("create", flag.ExitOnError)
 	name := fs.String("name", "", "Override filename")
 	desc := fs.String("description", "", "Add description")
-	user := fs.String("user", os.Getenv("ARTIFACT_USER_ID"), "User ID")
+	user := fs.String("user", defaultUser, "User ID (default: ARTIFACT_USER_ID)")
 	expires := fs.Int("expires", 24, "Expiration in hours")
+	quiet := fs.Bool("q", false, "Quiet mode: print only the artifact ID")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("Parse error: %v", err)
 	}
@@ -166,12 +185,16 @@ func handleCreate(cli *client.Client, args []string) {
 		log.Fatalf("Create failed: %v", err)
 	}
 
-	fmt.Printf("Artifact created successfully!\nID: %s\nURI: %s\n", res.Id, res.Uri)
+	if *quiet {
+		fmt.Println(res.Id)
+	} else {
+		fmt.Printf("Artifact created successfully!\nID: %s\nURI: %s\n", res.Id, res.Uri)
+	}
 }
 
-func handleDownload(cli *client.Client, args []string) {
+func handleDownload(cli *client.Client, args []string, defaultUser string) {
 	fs := flag.NewFlagSet("download", flag.ExitOnError)
-	user := fs.String("user", "", "Scope to user ID")
+	user := fs.String("user", defaultUser, "Scope to user ID (default: ARTIFACT_USER_ID)")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("Parse error: %v", err)
 	}
@@ -185,7 +208,12 @@ func handleDownload(cli *client.Client, args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	res, err := cli.Read(ctx, id, client.WithReadUserID(*user))
+	var opts []client.ReadOption
+	if *user != "" {
+		opts = append(opts, client.WithReadUserID(*user))
+	}
+
+	res, err := cli.Read(ctx, id, opts...)
 	if err != nil {
 		log.Fatalf("Read failed: %v", err)
 	}

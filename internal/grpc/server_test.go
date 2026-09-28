@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestServer_WriteRead(t *testing.T) {
 	writeRes, err := s.Write(ctx, writeReq)
 	require.NoError(t, err)
 	assert.NotEmpty(t, writeRes.Id)
-	assert.Contains(t, writeRes.Uri, writeReq.Filename)
+	assert.Equal(t, fmt.Sprintf("mlcartifact://%s", writeRes.Id), writeRes.Uri)
 
 	// Test Read
 	readReq := &pb.ReadRequest{
@@ -59,15 +60,21 @@ func TestServer_ListDelete(t *testing.T) {
 	ctx := context.Background()
 
 	userId := "list-user"
-	_, err = s.Write(ctx, &pb.WriteRequest{Filename: "f1", Content: []byte("1"), UserId: userId})
+	_, err = s.Write(ctx, &pb.WriteRequest{Filename: "f1", Content: []byte("12345"), UserId: userId})
 	require.NoError(t, err)
-	_, err = s.Write(ctx, &pb.WriteRequest{Filename: "f2", Content: []byte("2"), UserId: userId})
+	_, err = s.Write(ctx, &pb.WriteRequest{Filename: "f2", Content: []byte("12"), UserId: userId})
 	require.NoError(t, err)
 
 	// Test List
 	listRes, err := s.List(ctx, &pb.ListRequest{UserId: userId})
 	require.NoError(t, err)
 	assert.Len(t, listRes.Items, 2)
+	sizes := map[string]int64{}
+	for _, item := range listRes.Items {
+		sizes[item.Filename] = item.SizeBytes
+	}
+	assert.Equal(t, int64(5), sizes["f1"])
+	assert.Equal(t, int64(2), sizes["f2"])
 
 	// Test Delete
 	delRes, err := s.Delete(ctx, &pb.DeleteRequest{Id: listRes.Items[0].Id, UserId: userId})

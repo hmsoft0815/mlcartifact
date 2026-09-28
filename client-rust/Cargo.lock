@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "mlcartifact"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "http",
  "prost",

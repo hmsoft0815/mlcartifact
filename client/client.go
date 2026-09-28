@@ -45,7 +45,7 @@ import (
 )
 
 // Version is the current version of the library.
-const Version = "0.5.3"
+const Version = "0.5.4"
 
 // Client is a gRPC/Connect client for the artifact service. It is thread-safe and can
 // be shared across multiple goroutines.

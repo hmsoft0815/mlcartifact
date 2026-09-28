@@ -120,7 +120,8 @@ The client library automatically respects the following environment variables if
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `ARTIFACT_GRPC_ADDR` | `:9590` | The address of the `mlcartifact` gRPC server. |
+| `ARTIFACT_GRPC_ADDR` | `127.0.0.1:9590` | The address of the `mlcartifact` gRPC server. |
+| `ARTIFACT_GRPC_TOKEN` | `""` | Authentication token for remote access (also checks `ARTIFACT_TOKEN`; ignored for localhost). |
 | `ARTIFACT_SOURCE` | `""` | Default source tag for all `Write` operations. |
 | `ARTIFACT_USER_ID` | `""` | Default user ID scoping for all operations. |
 

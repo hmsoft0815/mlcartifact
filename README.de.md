@@ -221,15 +221,17 @@ Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Fl
 | Flag | Standard | Beschreibung |
 |---|---|---|
 | `-addr` | _(leer)_ | HTTP-Adresse (z. B. `127.0.0.1:8080` für lokal, `:8080` für alle): Streamable HTTP auf `/mcp`, SSE auf `/sse`. Leer = stdio-Modus. |
-| `-grpc-addr` | `:9590` | gRPC-Adresse (z. B. `127.0.0.1:9590` für lokal, `:9590` für alle). |
+| `-grpc-addr` | `127.0.0.1:9590` | gRPC-Adresse (z. B. `127.0.0.1:9590` für lokal, `0.0.0.0:9590` für alle Schnittstellen). |
+| `-grpc-token` | _(leer)_ | Authentifizierungs-Token für Remote-Zugriff (Nicht-Loopback). Localhost-Zugriff funktioniert ohne Token. |
 | `-data-dir` | `~/mlcartifact/storage` | Speicherverzeichnis |
 | `-mcp-list-limit` | `100` | Max. Einträge bei `list_artifacts` |
 
-**Umgebungsvariablen (Bibliothek):**
+**Umgebungsvariablen (Bibliothek & Server):**
 
 | Variable | Beschreibung |
 |---|---|
-| `ARTIFACT_GRPC_ADDR` | gRPC-Adresse (Standard: `:9590`) |
+| `ARTIFACT_GRPC_ADDR` | gRPC-Adresse (Standard: `127.0.0.1:9590`) |
+| `ARTIFACT_GRPC_TOKEN` | Authentifizierungs-Token für Remote-Zugriff (prüft auch `ARTIFACT_TOKEN`; für Localhost ignoriert) |
 | `ARTIFACT_SOURCE` | Standard-Quell-Tag |
 | `ARTIFACT_USER_ID` | Standard-Benutzer-ID |
 

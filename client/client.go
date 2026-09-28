@@ -19,6 +19,7 @@
 // Several environment variables are automatically respected by the client:
 //
 //   - ARTIFACT_GRPC_ADDR: The address of the gRPC server (default: ":9590").
+//   - ARTIFACT_GRPC_TOKEN: Default authentication token for remote access (also checks ARTIFACT_TOKEN).
 //   - ARTIFACT_SOURCE: A default identifier for the source of artifacts (e.g. "my-agent").
 //   - ARTIFACT_USER_ID: A default user ID to scope all operations to.
 //
@@ -44,7 +45,7 @@ import (
 )
 
 // Version is the current version of the library.
-const Version = "0.5.1"
+const Version = "0.5.2"
 
 // Client is a gRPC/Connect client for the artifact service. It is thread-safe and can
 // be shared across multiple goroutines.
@@ -68,6 +69,7 @@ type ClientOption func(*clientSettings)
 
 type clientSettings struct {
 	httpClient *http.Client
+	token      string
 }
 
 // WithHTTPClient provides a custom http.Client.
@@ -77,10 +79,24 @@ func WithHTTPClient(c *http.Client) ClientOption {
 	}
 }
 
+// WithToken configures the client to send a Bearer authentication token.
+// Needed for remote access when the server has an authentication token configured.
+func WithToken(token string) ClientOption {
+	return func(s *clientSettings) {
+		s.token = token
+	}
+}
+
 // NewClientWithAddr creates a new client for a specific server address.
 // It automatically supports HTTP/2 (H2C) and falls back to HTTP/1.1 if needed.
 func NewClientWithAddr(addr string, opts ...ClientOption) (*Client, error) {
-	settings := &clientSettings{}
+	defaultToken := os.Getenv("ARTIFACT_GRPC_TOKEN")
+	if defaultToken == "" {
+		defaultToken = os.Getenv("ARTIFACT_TOKEN")
+	}
+	settings := &clientSettings{
+		token: defaultToken,
+	}
 	for _, opt := range opts {
 		opt(settings)
 	}
@@ -103,9 +119,23 @@ func NewClientWithAddr(addr string, opts ...ClientOption) (*Client, error) {
 		baseURL = "http://" + baseURL
 	}
 
+	var clientOpts []connect.ClientOption
+	if settings.token != "" {
+		clientOpts = append(clientOpts, connect.WithInterceptors(connect.UnaryInterceptorFunc(
+			func(next connect.UnaryFunc) connect.UnaryFunc {
+				return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+					if req.Header().Get("Authorization") == "" {
+						req.Header().Set("Authorization", "Bearer "+settings.token)
+					}
+					return next(ctx, req)
+				}
+			},
+		)))
+	}
+
 	return &Client{
 		httpClient: settings.httpClient,
-		cli:        protoconnect.NewArtifactServiceClient(settings.httpClient, baseURL),
+		cli:        protoconnect.NewArtifactServiceClient(settings.httpClient, baseURL, clientOpts...),
 	}, nil
 }
 

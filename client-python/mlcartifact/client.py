@@ -26,16 +26,19 @@ class ArtifactClient:
     """ Python client for the mlcartifact service using the Connect protocol
     (binary protobuf over plain HTTP POST; no grpcio needed). """
 
-    def __init__(self, addr: Optional[str] = None):
+    def __init__(self, addr: Optional[str] = None, token: Optional[str] = None):
         """
         Initialize the client.
         :param addr: The address of the artifact server (e.g. 'localhost:9590').
                      If None, it reads from ARTIFACT_GRPC_ADDR environment variable.
+        :param token: Authentication token for remote access.
+                      If None, it reads from ARTIFACT_GRPC_TOKEN or ARTIFACT_TOKEN env vars.
         """
         self.addr = addr or os.getenv("ARTIFACT_GRPC_ADDR") or "localhost:9590"
         if not self.addr.startswith(("http://", "https://")):
             self.addr = f"http://{self.addr}"
 
+        self.token = token or os.getenv("ARTIFACT_GRPC_TOKEN") or os.getenv("ARTIFACT_TOKEN") or ""
         self.base_url = self.addr.rstrip("/")
         # HTTP/2 is negotiated via ALPN on https://; plain http:// uses HTTP/1.1,
         # which the Connect protocol supports as well.
@@ -53,6 +56,8 @@ class ArtifactClient:
             "Content-Type": "application/proto",
             "Connect-Protocol-Version": "1",
         }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
 
         resp = self.client.post(url, content=request_msg.SerializeToString(), headers=headers)
         if resp.status_code != 200:

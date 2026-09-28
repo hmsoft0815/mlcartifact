@@ -52,8 +52,10 @@ export class ArtifactClient {
    *                  If omitted, it looks for ARTIFACT_GRPC_ADDR env var.
    * @param transport - Optional custom transport. If provided, baseUrl is ignored.
    *                    Useful for adding interceptors or mocking in tests.
+   * @param token - Optional authentication token for remote access.
+   *                If omitted, it looks for ARTIFACT_GRPC_TOKEN or ARTIFACT_TOKEN env vars.
    */
-  constructor(baseUrl?: string, transport?: Transport) {
+  constructor(baseUrl?: string, transport?: Transport, token?: string) {
     if (transport) {
       this.client = createClient(ArtifactService, transport);
       return;
@@ -62,8 +64,23 @@ export class ArtifactClient {
     const url = baseUrl || env("ARTIFACT_GRPC_ADDR") || "http://localhost:9590";
     // Ensure URL has protocol
     const finalUrl = url.includes("://") ? url : `http://${url}`;
+    const authToken = token || env("ARTIFACT_GRPC_TOKEN") || env("ARTIFACT_TOKEN");
 
-    this.client = createClient(ArtifactService, createConnectTransport({ baseUrl: finalUrl }));
+    const interceptors = authToken
+      ? [
+          (next: any) => async (req: any) => {
+            if (!req.header.has("Authorization")) {
+              req.header.set("Authorization", `Bearer ${authToken}`);
+            }
+            return await next(req);
+          },
+        ]
+      : [];
+
+    this.client = createClient(
+      ArtifactService,
+      createConnectTransport({ baseUrl: finalUrl, interceptors }),
+    );
   }
 
   /**

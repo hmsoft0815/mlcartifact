@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"connectrpc.com/connect"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -82,10 +83,20 @@ func decodeBase64Headers(next http.Handler) http.Handler {
 }
 
 func main() {
+	defaultGrpcAddr := os.Getenv("ARTIFACT_GRPC_ADDR")
+	if defaultGrpcAddr == "" {
+		defaultGrpcAddr = "127.0.0.1:9590"
+	}
+	defaultGrpcToken := os.Getenv("ARTIFACT_GRPC_TOKEN")
+	if defaultGrpcToken == "" {
+		defaultGrpcToken = os.Getenv("ARTIFACT_TOKEN")
+	}
+
 	dump := flag.Bool("dump", false, "Dump available tools as JSON and exit")
 	v := flag.Bool("version", false, "Print version and exit")
 	addr := flag.String("addr", "", "Listen address for HTTP (Streamable HTTP on /mcp, SSE on /sse), e.g. '127.0.0.1:8080' for local only or ':8080' for all interfaces. If empty, uses stdio.")
-	grpcAddr := flag.String("grpc-addr", ":9590", "Listen address for gRPC service (e.g. '127.0.0.1:9590' for local only, or ':9590' for all interfaces)")
+	grpcAddr := flag.String("grpc-addr", defaultGrpcAddr, "Listen address for gRPC service (default: '127.0.0.1:9590', or '0.0.0.0:9590' for all interfaces)")
+	grpcToken := flag.String("grpc-token", defaultGrpcToken, "Authentication token required for remote (non-loopback) access. Can also be set via ARTIFACT_GRPC_TOKEN.")
 	mcpLimit := flag.Int("mcp-list-limit", 100, "Max artifacts to return in MCP list_artifacts")
 
 	defaultDataDir := ".artifacts"
@@ -119,16 +130,27 @@ func main() {
 	// Start Connect/gRPC server in background
 	go func() {
 		mux := http.NewServeMux()
-		path, handler := protoconnect.NewArtifactServiceHandler(grpc.NewConnectServer(store))
+		path, handler := protoconnect.NewArtifactServiceHandler(
+			grpc.NewConnectServer(store),
+			connect.WithInterceptors(grpc.NewAuthInterceptor(*grpcToken)),
+		)
 		mux.Handle(path, handler)
 
-		slog.Info("Connect/gRPC server started", "addr", *grpcAddr)
+		slog.Info("Connect/gRPC server started", "addr", *grpcAddr, "remote_token_protected", *grpcToken != "")
 
 		// Setup CORS for browser access
 		c := cors.New(cors.Options{
 			AllowedOrigins: []string{"*"}, // Adjust in production
 			AllowedMethods: []string{"GET", "POST", "OPTIONS"},
-			AllowedHeaders: []string{"Connect-Protocol-Version", "Content-Type", "Accept", "Connect-Timeout-Ms", "X-User-Id"},
+			AllowedHeaders: []string{
+				"Connect-Protocol-Version",
+				"Content-Type",
+				"Accept",
+				"Connect-Timeout-Ms",
+				"X-User-Id",
+				"Authorization",
+				"X-Artifact-Token",
+			},
 			ExposedHeaders: []string{"Content-Length"},
 		})
 

@@ -60,15 +60,17 @@ The client automatically respects the following environment variables:
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `ARTIFACT_GRPC_ADDR` | `:9590` | The address of the gRPC server. |
+| `ARTIFACT_GRPC_TOKEN` | `""` | Authentication token for remote access (also checks `ARTIFACT_TOKEN`; ignored for localhost). |
 | `ARTIFACT_SOURCE` | `""` | Default source tag for all `Write` operations. |
 | `ARTIFACT_USER_ID` | `""` | Default user ID scoping for all operations. |
 
-### Manual Connection
+### Manual Connection & Authentication
 
-If you need to connect to a specific address or provide a custom `http.Client`:
+If you need to connect to a specific address, provide a token, or supply a custom `http.Client`:
 
 ```go
-c, err := client.NewClientWithAddr("remote-host:9590")
+// Connect to remote host with authentication token
+c, err := client.NewClientWithAddr("remote-host:9590", client.WithToken("my-secret-token"))
 ```
 
 ### Firewall-Friendly Communication (Connect-Go)

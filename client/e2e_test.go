@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	connect "connectrpc.com/connect"
 	"github.com/hmsoft0815/mlcartifact/internal/grpc"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
@@ -65,3 +66,32 @@ func TestClientEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, d.Deleted)
 }
+
+// TestClientEndToEndAuthLoopback tests that loopback requests bypass auth even when a token is required for remote.
+func TestClientEndToEndAuthLoopback(t *testing.T) {
+	mux := http.NewServeMux()
+	path, handler := protoconnect.NewArtifactServiceHandler(
+		grpc.NewConnectServer(storage.NewStore(t.TempDir())),
+		connect.WithInterceptors(grpc.NewAuthInterceptor("server-secret")),
+	)
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Client with NO token connecting via loopback - must succeed
+	cNoToken, err := NewClientWithAddr(srv.URL, WithHTTPClient(srv.Client()), WithToken(""))
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	w, err := cNoToken.Write(ctx, "hello.txt", []byte("world"))
+	require.NoError(t, err)
+	assert.NotEmpty(t, w.Id)
+
+	// Client with a token connecting via loopback - must also succeed (token ignored)
+	cWithToken, err := NewClientWithAddr(srv.URL, WithHTTPClient(srv.Client()), WithToken("any-token"))
+	require.NoError(t, err)
+	r, err := cWithToken.Read(ctx, w.Id)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("world"), r.Content)
+}
+

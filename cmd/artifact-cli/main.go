@@ -17,11 +17,18 @@ import (
 var version = "dev"
 
 func main() {
-	addr := flag.String("addr", os.Getenv("ARTIFACT_GRPC_ADDR"), "Artifact server gRPC address")
-	v := flag.Bool("version", false, "Print version and exit")
-	if *addr == "" {
-		*addr = "localhost:50051"
+	defaultAddr := os.Getenv("ARTIFACT_GRPC_ADDR")
+	if defaultAddr == "" {
+		defaultAddr = "localhost:9590"
 	}
+	defaultToken := os.Getenv("ARTIFACT_GRPC_TOKEN")
+	if defaultToken == "" {
+		defaultToken = os.Getenv("ARTIFACT_TOKEN")
+	}
+
+	addr := flag.String("addr", defaultAddr, "Artifact server gRPC address")
+	token := flag.String("token", defaultToken, "Authentication token for remote server (default: ARTIFACT_GRPC_TOKEN or ARTIFACT_TOKEN)")
+	v := flag.Bool("version", false, "Print version and exit")
 
 	flag.Parse()
 
@@ -35,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cli, err := client.NewClientWithAddr(*addr)
+	cli, err := client.NewClientWithAddr(*addr, client.WithToken(*token))
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -61,7 +68,8 @@ func main() {
 func usage() {
 	fmt.Println("Usage: artifact-cli [options] <command> [args]")
 	fmt.Println("Options:")
-	fmt.Println("  -addr string  gRPC address (default: ARTIFACT_GRPC_ADDR or localhost:50051)")
+	fmt.Println("  -addr string   gRPC address (default: ARTIFACT_GRPC_ADDR or localhost:9590)")
+	fmt.Println("  -token string  Authentication token for remote server (default: ARTIFACT_GRPC_TOKEN)")
 	fmt.Println("Commands:")
 	fmt.Println("  list [--limit N] [--offset M] [--user ID]")
 	fmt.Println("  delete <id> [--user ID]")

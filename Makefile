@@ -125,27 +125,6 @@ dist-ts:
 	cd client-ts && npm run build
 	@echo "Build complete. Artifacts are in client-ts/dist/"
 
-# Examples
-.PHONY: run-example-go run-example-python run-example-ts run-example-rust run-examples
-
-run-example-go:
-	@echo "Running Go example..."
-	go run ./examples/go/main.go
-
-run-example-python:
-	@echo "Running Python example..."
-	PYTHONPATH=./client-python python3 client-python/example.py
-
-run-example-ts:
-	@echo "Running TypeScript example..."
-	cd client-ts && npm run example
-
-run-example-rust:
-	@echo "Running Rust example..."
-	cd client-rust && cargo run --example basic
-
-run-examples: run-example-go run-example-python run-example-ts run-example-rust
-
 # Help
 help:
 	@echo "Available targets:"
@@ -163,11 +142,6 @@ help:
 	@echo "  dist-ts       - Build the universal TypeScript ES6+ library"
 	@echo "  run-server    - Run server in stdio mode"
 	@echo "  run-server-sse - Run server in HTTP mode on :8082 (/mcp, /sse)"
-	@echo "  run-example-go     - Run the Go client example"
-	@echo "  run-example-python - Run the Python client example"
-	@echo "  run-example-ts     - Run the TypeScript client example"
-	@echo "  run-example-rust   - Run the Rust client example"
-	@echo "  run-examples       - Run all client examples"
 	@echo "  build-all          - Build for all platforms (Linux, Windows, macOS)"
 	@echo "  build-linux        - Build for Linux amd64"
 	@echo "  build-windows      - Build for Windows amd64"

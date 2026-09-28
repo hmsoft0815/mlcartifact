@@ -11,8 +11,7 @@
     "build": "tsc",
     "pretest": "npm run generate",
     "test": "vitest run",
-    "prepare": "npm run build",
-    "example": "node --import tsx examples/example.ts"
+    "prepare": "npm run build"
   },
   "keywords": [
     "mcp",

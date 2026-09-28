@@ -159,6 +159,9 @@ func (s *Server) Patch(ctx context.Context, req *pb.PatchRequest) (*pb.PatchResp
 		if errors.Is(err, storage.ErrArtifactNotFound) || err.Error() == "artifact not found" {
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
 		}
+		if errors.Is(err, storage.ErrBinaryFile) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("cannot patch binary file: patch is only supported for text files"))
+		}
 		slog.Error("failed to patch artifact", "error", err, "id", req.Id, "user_id", req.UserId)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to patch artifact"))
 	}

@@ -327,3 +327,104 @@ func TestStore_NonExistentUser_NoErrorLeak(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, items)
 }
+
+func TestIsBinary(t *testing.T) {
+	// Extensions
+	assert.True(t, IsBinary("photo.png", "image/png", []byte("xyz")))
+	assert.True(t, IsBinary("photo.jpg", "image/jpeg", []byte("xyz")))
+	assert.True(t, IsBinary("doc.pdf", "application/pdf", []byte("xyz")))
+	assert.True(t, IsBinary("archive.zip", "application/zip", []byte("xyz")))
+	assert.True(t, IsBinary("program.exe", "application/octet-stream", []byte("xyz")))
+	assert.True(t, IsBinary("data.bin", "application/octet-stream", []byte("xyz")))
+
+	// MIME types
+	assert.True(t, IsBinary("unknown", "image/jpeg", []byte("xyz")))
+	assert.True(t, IsBinary("unknown", "audio/mpeg", []byte("xyz")))
+	assert.True(t, IsBinary("unknown", "video/mp4", []byte("xyz")))
+	assert.True(t, IsBinary("unknown", "application/pdf", []byte("xyz")))
+
+	// Content with NUL byte
+	assert.True(t, IsBinary("mystery.txt", "text/plain", []byte("hello\x00world")))
+	// Content with invalid UTF-8
+	assert.True(t, IsBinary("mystery.txt", "text/plain", []byte{0xff, 0xfe, 0xfd}))
+
+	// Text files
+	assert.False(t, IsBinary("notes.txt", "text/plain", []byte("hello world")))
+	assert.False(t, IsBinary("readme.md", "text/markdown", []byte("# Title\nContent")))
+	assert.False(t, IsBinary("data.json", "application/json", []byte(`{"key":"value"}`)))
+	assert.False(t, IsBinary("icon.svg", "image/svg+xml", []byte(`<svg viewBox="0 0 10 10"></svg>`)))
+	assert.False(t, IsBinary("script.js", "application/javascript", []byte("console.log('hi');")))
+	assert.False(t, IsBinary("Dockerfile", "application/octet-stream", []byte("FROM alpine\nRUN echo hi\n")))
+	assert.False(t, IsBinary("empty.txt", "text/plain", []byte("")))
+}
+
+func TestStore_Patch_BinaryFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "artifact-patch-binary-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	store := NewStore(tempDir)
+	userID := "test-user"
+
+	// 1. Image artifact
+	imgMeta, err := store.Write("image.png", []byte("\x89PNG\r\n\x1a\n\x00data"), "image/png", 1, "test", userID, "", nil, "")
+	require.NoError(t, err)
+
+	_, err = store.Patch(imgMeta.ID, userID, []byte("patched"), 0, 1, false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBinaryFile)
+
+	_, err = store.Patch(imgMeta.ID, userID, []byte("append"), 0, 0, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBinaryFile)
+
+	// Content must remain untouched
+	imgData, _, err := store.Read(imgMeta.ID, userID)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("\x89PNG\r\n\x1a\n\x00data"), imgData)
+
+	// 2. PDF artifact
+	pdfMeta, err := store.Write("document.pdf", []byte("%PDF-1.4\n%binary\x00stream"), "application/pdf", 1, "test", userID, "", nil, "")
+	require.NoError(t, err)
+
+	_, err = store.Patch(pdfMeta.ID, userID, []byte("patched"), 0, 1, false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBinaryFile)
+
+	// 3. Binary file with NUL byte in content even if named .txt
+	binMeta, err := store.Write("binary.txt", []byte("line1\x00line2"), "text/plain", 1, "test", userID, "", nil, "")
+	require.NoError(t, err)
+
+	_, err = store.Patch(binMeta.ID, userID, []byte("patched"), 0, 1, false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBinaryFile)
+
+	// 4. Text file patched with binary content
+	txtMeta, err := store.Write("normal.txt", []byte("line1\nline2"), "text/plain", 1, "test", userID, "", nil, "")
+	require.NoError(t, err)
+
+	_, err = store.Patch(txtMeta.ID, userID, []byte("binary\x00content"), 0, 1, false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBinaryFile)
+
+	// 5. Valid text file patched with text content (should succeed)
+	newSize, err := store.Patch(txtMeta.ID, userID, []byte("replaced"), 0, 1, false)
+	require.NoError(t, err)
+	assert.Greater(t, newSize, int64(0))
+
+	txtData, _, err := store.Read(txtMeta.ID, userID)
+	require.NoError(t, err)
+	assert.Equal(t, "replaced\nline2", string(txtData))
+
+	// 6. SVG file (image/svg+xml) is XML text and should succeed
+	svgMeta, err := store.Write("icon.svg", []byte("<svg>\n<path/>\n</svg>"), "image/svg+xml", 1, "test", userID, "", nil, "")
+	require.NoError(t, err)
+
+	_, err = store.Patch(svgMeta.ID, userID, []byte("<circle/>"), 1, 2, false)
+	require.NoError(t, err)
+
+	svgData, _, err := store.Read(svgMeta.ID, userID)
+	require.NoError(t, err)
+	assert.Contains(t, string(svgData), "<circle/>")
+}
+

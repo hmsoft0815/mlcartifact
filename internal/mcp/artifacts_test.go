@@ -124,3 +124,26 @@ func TestMCP_Security_NonExistentUser_NoErrorLeak(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, list.Artifacts)
 }
+
+func TestMCP_VFSPatch_BinaryFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "artifact-mcp-binary-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	s := storage.NewStore(tempDir)
+	SetStore(s)
+	ctx := context.Background()
+
+	meta, err := s.Write("photo.jpg", []byte("\xff\xd8\xff\xe0data"), "image/jpeg", 1, "test", "user1", "", nil, "")
+	require.NoError(t, err)
+
+	_, _, err = VFSPatch(ctx, nil, VFSPatchArgs{
+		ID:      meta.ID,
+		UserID:  "user1",
+		Content: "text patch",
+		Append:  true,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot patch binary file")
+}
+

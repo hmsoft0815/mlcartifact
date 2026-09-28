@@ -163,3 +163,34 @@ func TestServer_Security_NonExistentUser_NoErrorLeak(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, listRes.Items)
 }
+
+func TestServer_Patch_BinaryFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "artifact-grpc-binary-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	store := storage.NewStore(tempDir)
+	s := NewServer(store)
+	ctx := context.Background()
+
+	// Write a binary file (PNG)
+	writeRes, err := s.Write(ctx, &pb.WriteRequest{
+		Filename: "image.png",
+		Content:  []byte("\x89PNG\r\n\x1a\n\x00data"),
+		MimeType: "image/png",
+		UserId:   "user1",
+	})
+	require.NoError(t, err)
+
+	// Attempt to patch the binary file
+	patchRes, err := s.Patch(ctx, &pb.PatchRequest{
+		Id:      writeRes.Id,
+		UserId:  "user1",
+		Content: []byte("new-content"),
+		Append:  true,
+	})
+	require.Error(t, err)
+	assert.Nil(t, patchRes)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	assert.Contains(t, err.Error(), "cannot patch binary file")
+}

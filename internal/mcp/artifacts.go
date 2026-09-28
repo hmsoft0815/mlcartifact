@@ -308,6 +308,9 @@ func VFSPatch(ctx context.Context, req *mcp.CallToolRequest, args VFSPatchArgs) 
 		if errors.Is(err, storage.ErrArtifactNotFound) || err.Error() == "artifact not found" {
 			return nil, VFSPatchResult{}, fmt.Errorf("artifact %q not found", args.ID)
 		}
+		if errors.Is(err, storage.ErrBinaryFile) {
+			return nil, VFSPatchResult{}, errors.New("cannot patch binary file: patch is only supported for text files")
+		}
 		slog.Error("failed to patch artifact via MCP", "error", err, "id", args.ID, "user_id", args.UserID)
 		return nil, VFSPatchResult{}, fmt.Errorf("failed to patch artifact %q", args.ID)
 	}

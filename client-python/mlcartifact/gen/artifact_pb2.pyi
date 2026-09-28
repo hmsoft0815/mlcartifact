@@ -81,7 +81,7 @@ class DeleteResponse(_message.Message):
     __slots__ = ("deleted",)
     DELETED_FIELD_NUMBER: _ClassVar[int]
     deleted: bool
-    def __init__(self, deleted: _Optional[bool] = ...) -> None: ...
+    def __init__(self, deleted: bool = ...) -> None: ...
 
 class ListRequest(_message.Message):
     __slots__ = ("source", "user_id", "limit", "offset", "dir_path")
@@ -127,7 +127,7 @@ class ArtifactInfo(_message.Message):
     description: str
     virtual_path: str
     is_directory: bool
-    def __init__(self, id: _Optional[str] = ..., filename: _Optional[str] = ..., mime_type: _Optional[str] = ..., source: _Optional[str] = ..., created_at: _Optional[str] = ..., expires_at: _Optional[str] = ..., size_bytes: _Optional[int] = ..., user_id: _Optional[str] = ..., description: _Optional[str] = ..., virtual_path: _Optional[str] = ..., is_directory: _Optional[bool] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., filename: _Optional[str] = ..., mime_type: _Optional[str] = ..., source: _Optional[str] = ..., created_at: _Optional[str] = ..., expires_at: _Optional[str] = ..., size_bytes: _Optional[int] = ..., user_id: _Optional[str] = ..., description: _Optional[str] = ..., virtual_path: _Optional[str] = ..., is_directory: bool = ...) -> None: ...
 
 class PatchRequest(_message.Message):
     __slots__ = ("id", "user_id", "content", "line_start", "line_end", "append")
@@ -143,7 +143,7 @@ class PatchRequest(_message.Message):
     line_start: int
     line_end: int
     append: bool
-    def __init__(self, id: _Optional[str] = ..., user_id: _Optional[str] = ..., content: _Optional[bytes] = ..., line_start: _Optional[int] = ..., line_end: _Optional[int] = ..., append: _Optional[bool] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., user_id: _Optional[str] = ..., content: _Optional[bytes] = ..., line_start: _Optional[int] = ..., line_end: _Optional[int] = ..., append: bool = ...) -> None: ...
 
 class PatchResponse(_message.Message):
     __slots__ = ("success", "new_size", "updated_at")
@@ -153,7 +153,7 @@ class PatchResponse(_message.Message):
     success: bool
     new_size: int
     updated_at: str
-    def __init__(self, success: _Optional[bool] = ..., new_size: _Optional[int] = ..., updated_at: _Optional[str] = ...) -> None: ...
+    def __init__(self, success: bool = ..., new_size: _Optional[int] = ..., updated_at: _Optional[str] = ...) -> None: ...
 
 class FindRequest(_message.Message):
     __slots__ = ("user_id", "pattern")

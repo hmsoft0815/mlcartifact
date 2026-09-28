@@ -1,7 +1,8 @@
 //! Rust client for the mlcartifact service (gRPC, `artifact.v1`).
 //!
 //! The raw generated types and client live in [`gen`]; [`ArtifactClient`] is a
-//! thin convenience wrapper around them.
+//! convenience wrapper providing token authentication, environment variable
+//! defaults, and high-level methods.
 
 pub mod gen {
     tonic::include_proto!("artifact.v1");
@@ -43,20 +44,74 @@ pub struct ListOptions {
     pub dir_path: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct ArtifactClient {
     client: ArtifactServiceClient<Channel>,
+    token: Option<String>,
+    default_user_id: Option<String>,
+    default_source: Option<String>,
 }
 
 impl ArtifactClient {
-    pub async fn connect(dst: String) -> Result<Self, tonic::transport::Error> {
-        let client = ArtifactServiceClient::connect(dst).await?;
-        Ok(Self { client })
+    fn normalize_addr(addr: &str) -> String {
+        if addr.contains("://") {
+            addr.to_string()
+        } else if addr.starts_with(':') {
+            format!("http://localhost{addr}")
+        } else {
+            format!("http://{addr}")
+        }
+    }
+
+    /// Connect to the artifact service.
+    ///
+    /// Automatically reads `ARTIFACT_GRPC_TOKEN` / `ARTIFACT_TOKEN`, `ARTIFACT_USER_ID`,
+    /// and `ARTIFACT_SOURCE` from the environment if present.
+    pub async fn connect(dst: impl Into<String>) -> Result<Self, tonic::transport::Error> {
+        let token = std::env::var("ARTIFACT_GRPC_TOKEN")
+            .or_else(|_| std::env::var("ARTIFACT_TOKEN"))
+            .ok()
+            .filter(|s| !s.is_empty());
+        Self::connect_with_token(dst, token).await
+    }
+
+    /// Connect with an explicit authentication token (or `None`).
+    pub async fn connect_with_token(
+        dst: impl Into<String>,
+        token: Option<String>,
+    ) -> Result<Self, tonic::transport::Error> {
+        let addr = Self::normalize_addr(&dst.into());
+        let client = ArtifactServiceClient::connect(addr).await?;
+        let default_user_id = std::env::var("ARTIFACT_USER_ID").ok().filter(|s| !s.is_empty());
+        let default_source = std::env::var("ARTIFACT_SOURCE").ok().filter(|s| !s.is_empty());
+        Ok(Self {
+            client,
+            token,
+            default_user_id,
+            default_source,
+        })
+    }
+
+    /// Connect using `ARTIFACT_GRPC_ADDR` (defaulting to `http://localhost:9590`).
+    pub async fn from_env() -> Result<Self, tonic::transport::Error> {
+        let addr = std::env::var("ARTIFACT_GRPC_ADDR").unwrap_or_else(|_| "http://localhost:9590".to_string());
+        Self::connect(addr).await
+    }
+
+    fn make_request<T>(&self, message: T) -> tonic::Request<T> {
+        let mut req = tonic::Request::new(message);
+        if let Some(ref token) = self.token {
+            if let Ok(val) = format!("Bearer {token}").parse() {
+                req.metadata_mut().insert("authorization", val);
+            }
+        }
+        req
     }
 
     /// Low-level write taking the raw request.
     pub async fn write(&self, request: gen::WriteRequest) -> Result<gen::WriteResponse, tonic::Status> {
         let mut client = self.client.clone();
-        let response = client.write(request).await?;
+        let response = client.write(self.make_request(request)).await?;
         Ok(response.into_inner())
     }
 
@@ -72,9 +127,9 @@ impl ArtifactClient {
             content: content.into(),
             mime_type: opts.mime_type.unwrap_or_default(),
             expires_hours: opts.expires_hours.unwrap_or_default(),
-            source: opts.source.unwrap_or_default(),
+            source: opts.source.or_else(|| self.default_source.clone()).unwrap_or_default(),
             metadata: opts.metadata,
-            user_id: opts.user_id.unwrap_or_default(),
+            user_id: opts.user_id.or_else(|| self.default_user_id.clone()).unwrap_or_default(),
             description: opts.description.unwrap_or_default(),
             virtual_path: opts.virtual_path.unwrap_or_default(),
         })
@@ -86,9 +141,9 @@ impl ArtifactClient {
         let mut client = self.client.clone();
         let request = gen::ReadRequest {
             id,
-            user_id: user_id.unwrap_or_default(),
+            user_id: user_id.or_else(|| self.default_user_id.clone()).unwrap_or_default(),
         };
-        let response = client.read(request).await?;
+        let response = client.read(self.make_request(request)).await?;
         Ok(response.into_inner())
     }
 
@@ -107,13 +162,13 @@ impl ArtifactClient {
     pub async fn list_with(&self, opts: ListOptions) -> Result<gen::ListResponse, tonic::Status> {
         let mut client = self.client.clone();
         let request = gen::ListRequest {
-            source: opts.source.unwrap_or_default(),
-            user_id: opts.user_id.unwrap_or_default(),
+            source: opts.source.or_else(|| self.default_source.clone()).unwrap_or_default(),
+            user_id: opts.user_id.or_else(|| self.default_user_id.clone()).unwrap_or_default(),
             limit: opts.limit.unwrap_or_default(),
             offset: opts.offset.unwrap_or_default(),
             dir_path: opts.dir_path.unwrap_or_default(),
         };
-        let response = client.list(request).await?;
+        let response = client.list(self.make_request(request)).await?;
         Ok(response.into_inner())
     }
 
@@ -122,9 +177,9 @@ impl ArtifactClient {
         let mut client = self.client.clone();
         let request = gen::DeleteRequest {
             id,
-            user_id: user_id.unwrap_or_default(),
+            user_id: user_id.or_else(|| self.default_user_id.clone()).unwrap_or_default(),
         };
-        let response = client.delete(request).await?;
+        let response = client.delete(self.make_request(request)).await?;
         Ok(response.into_inner())
     }
 
@@ -145,13 +200,13 @@ impl ArtifactClient {
         let mut client = self.client.clone();
         let request = gen::PatchRequest {
             id: id_or_path.into(),
-            user_id: user_id.unwrap_or_default(),
+            user_id: user_id.or_else(|| self.default_user_id.clone()).unwrap_or_default(),
             content: content.into(),
             line_start: line_start.unwrap_or_default(),
             line_end: line_end.unwrap_or_default(),
             append,
         };
-        let response = client.patch(request).await?;
+        let response = client.patch(self.make_request(request)).await?;
         Ok(response.into_inner())
     }
 
@@ -159,10 +214,53 @@ impl ArtifactClient {
     pub async fn find(&self, pattern: impl Into<String>, user_id: Option<String>) -> Result<gen::ListResponse, tonic::Status> {
         let mut client = self.client.clone();
         let request = gen::FindRequest {
-            user_id: user_id.unwrap_or_default(),
+            user_id: user_id.or_else(|| self.default_user_id.clone()).unwrap_or_default(),
             pattern: pattern.into(),
         };
-        let response = client.find(request).await?;
+        let response = client.find(self.make_request(request)).await?;
         Ok(response.into_inner())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_addr() {
+        assert_eq!(ArtifactClient::normalize_addr("localhost:9590"), "http://localhost:9590");
+        assert_eq!(ArtifactClient::normalize_addr(":9590"), "http://localhost:9590");
+        assert_eq!(ArtifactClient::normalize_addr("http://127.0.0.1:9590"), "http://127.0.0.1:9590");
+        assert_eq!(ArtifactClient::normalize_addr("https://remote.server:9590"), "https://remote.server:9590");
+    }
+
+    #[tokio::test]
+    async fn test_make_request_with_token() {
+        let dummy_channel = tonic::transport::Endpoint::from_static("http://127.0.0.1:9590").connect_lazy();
+        let client = ArtifactClient {
+            client: ArtifactServiceClient::new(dummy_channel),
+            token: Some("secret123".into()),
+            default_user_id: None,
+            default_source: None,
+        };
+
+        let req = client.make_request("dummy");
+        let auth = req.metadata().get("authorization").expect("auth header present");
+        assert_eq!(auth.to_str().unwrap(), "Bearer secret123");
+    }
+
+    #[tokio::test]
+    async fn test_make_request_without_token() {
+        let dummy_channel = tonic::transport::Endpoint::from_static("http://127.0.0.1:9590").connect_lazy();
+        let client = ArtifactClient {
+            client: ArtifactServiceClient::new(dummy_channel),
+            token: None,
+            default_user_id: None,
+            default_source: None,
+        };
+
+        let req = client.make_request("dummy");
+        assert!(req.metadata().get("authorization").is_none());
+    }
+}
+

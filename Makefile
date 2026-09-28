@@ -2,10 +2,10 @@
 
 # Variables
 BINARY_DIR := ./bin
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION := $(shell cat VERSION 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: all build build-server build-cli test test-verbose test-cover lint tidy clean dist-ts proto run-server run-server-sse help
+.PHONY: all build build-server build-cli test test-all test-go test-ts test-python test-rust test-verbose test-cover lint tidy clean dist-ts proto run-server run-server-sse version-sync version-set help
 
 all: build
 
@@ -42,8 +42,21 @@ build-macos-arm64:
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_DIR)/artifact-cli-macos-arm64 ./cmd/artifact-cli
 
 # Testing
-test:
-	go test ./...
+test: test-go
+
+test-all: test-go test-ts test-python test-rust
+
+test-go:
+	go test -count=1 ./...
+
+test-ts:
+	cd client-ts && npm test
+
+test-python:
+	PYTHONPATH=./client-python python3 -m unittest discover -s client-python/tests
+
+test-rust:
+	cd client-rust && cargo test
 
 test-verbose:
 	go test -v ./...
@@ -63,6 +76,15 @@ tidy:
 clean:
 	rm -rf $(BINARY_DIR) coverage.out coverage.html
 	rm -rf ./client-ts/dist ./client-ts/src/gen
+
+# Version Management
+version-sync:
+	./scripts/sync-version.sh
+
+version-set:
+	@if [ -z "$(V)" ]; then echo "Usage: make version-set V=x.y.z"; exit 1; fi
+	echo "$(V)" > VERSION
+	./scripts/sync-version.sh
 
 # Running
 run-server:
@@ -123,10 +145,13 @@ help:
 	@echo "Available targets:"
 	@echo "  build         - Build Go server and CLI with version injection"
 	@echo "  test          - Run Go tests"
+	@echo "  test-all      - Run tests for Go, TypeScript, Python, and Rust clients"
 	@echo "  test-verbose  - Run tests with verbose output"
 	@echo "  test-cover    - Run tests with coverage report"
 	@echo "  lint          - Run golangci-lint"
 	@echo "  tidy          - Tidy go.mod"
+	@echo "  version-sync  - Sync VERSION file across all clients and server"
+	@echo "  version-set   - Set new VERSION (e.g. make version-set V=0.5.6) and sync"
 	@echo "  proto         - Regenerate all Protobuf/Connect files"
 	@echo "  dist-ts       - Build the universal TypeScript ES6+ library"
 	@echo "  run-server    - Run server in stdio mode"

@@ -14,7 +14,7 @@ import (
 	"github.com/hmsoft0815/mlcartifact/client"
 )
 
-var version = "dev"
+var version = "0.5.5"
 
 func main() {
 	defaultAddr := os.Getenv("ARTIFACT_GRPC_ADDR")

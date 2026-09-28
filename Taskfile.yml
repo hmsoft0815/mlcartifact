@@ -5,7 +5,7 @@ vars:
   SERVER_BIN: ./bin/artifact-server
   CLI_BIN: ./bin/artifact-cli
   VERSION:
-    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+    sh: cat VERSION 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "dev"
 
 tasks:
   default:
@@ -13,6 +13,17 @@ tasks:
     cmds:
       - task --list
     silent: true
+
+  version:sync:
+    desc: Sync root VERSION file across all client libraries and server
+    cmds:
+      - ./scripts/sync-version.sh
+
+  version:set:
+    desc: Set new version in VERSION file and sync across all clients and server
+    cmds:
+      - echo "{{.CLI_ARGS}}" > VERSION
+      - task: version:sync
 
   build:
     desc: Build all binaries (server + cli)
@@ -45,9 +56,34 @@ tasks:
       - "{{.CLI_BIN}}"
 
   test:
-    desc: Run all tests
+    desc: Run Go tests
     cmds:
-      - go test ./...
+      - go test -count=1 ./...
+
+  test:all:
+    desc: Run tests for Go, TypeScript, Python, and Rust clients
+    cmds:
+      - task: test
+      - task: test:ts
+      - task: test:python
+      - task: test:rust
+
+  test:ts:
+    desc: Run TypeScript client tests
+    dir: client-ts
+    cmds:
+      - npm test
+
+  test:python:
+    desc: Run Python client tests
+    cmds:
+      - PYTHONPATH=./client-python python3 -m unittest discover -s client-python/tests
+
+  test:rust:
+    desc: Run Rust client tests
+    dir: client-rust
+    cmds:
+      - cargo test
 
   test:integration:
     desc: Run the built server through mcp-tester (every tool, every parameter)

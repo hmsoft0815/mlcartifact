@@ -99,7 +99,7 @@ Alle vier Clients decken die komplette API ab: Schreiben, Lesen, Auflisten, Lös
 
 ## Ökosystem & Verwandte Projekte
 
-- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - Ein „Eierlegende-Wollmilchsau“-MCP-Server, der Scripte (Python, Bash, etc.) ausführen kann, die als Artefakte in `mlcartifact` gespeichert sind. Dies ermöglicht dynamische Tool-Ausführung, bei der das LLM ein Script in den Artefakt-Speicher schreibt und `wollmilchsau` es in einer sicheren Umgebung ausführt.
+- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - Ein „Eierlegende-Wollmilchsau“-MCP-Server, der JavaScript- bzw. TypeScript-Skripte ausführen kann, die als Artefakte in `mlcartifact` gespeichert sind. Dies ermöglicht dynamische Tool-Ausführung, bei der das LLM ein Skript in den Artefakt-Speicher schreibt und `wollmilchsau` es in einer sicheren Umgebung ausführt.
 
 ---
 
@@ -206,13 +206,18 @@ Alle Tools außer `read_artifact` liefern strukturierte Ergebnisse mit Output-Sc
 ## CLI Nutzung
 
 ```bash
+# Hochladen, Herunterladen, Auflisten, Löschen
 artifact-cli create ./bericht.csv --name "Q1-Bericht" --expires 72
+artifact-cli create -q ./script.sh             # Quiet-Modus: gibt nur die Artefakt-ID aus
 artifact-cli download abc123 ./lokale-kopie.csv
 artifact-cli list
 artifact-cli delete abc123
 ```
 
-Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Flag.
+Globale Optionen:
+- `-addr`: gRPC-Serveradresse (Standard: `ARTIFACT_GRPC_ADDR` oder `localhost:9590`)
+- `-token`: Authentifizierungs-Token für Remote-Zugriff (Standard: `ARTIFACT_GRPC_TOKEN` oder `ARTIFACT_TOKEN`)
+- `-user`: Standard-Benutzer-ID (Standard: `ARTIFACT_USER_ID`)
 
 ---
 
@@ -238,6 +243,28 @@ Verbindung via `ARTIFACT_GRPC_ADDR` (Standard: `localhost:9590`) oder `-addr` Fl
 | `ARTIFACT_CORS_ORIGINS` | Kommagetrennte Liste erlaubter Browser-CORS-Origins |
 | `ARTIFACT_SOURCE` | Standard-Quell-Tag |
 | `ARTIFACT_USER_ID` | Standard-Benutzer-ID |
+
+---
+
+## Authentifizierung & Sicherheit
+
+`mlcartifact` ist standardmäßig auf sicheren Betrieb ausgelegt:
+
+- **Localhost ohne Token (Zero-Config)**: Verbindungen von Loopback-Adressen (`127.0.0.1`, `::1`) erfordern standardmäßig **kein** Authentifizierungs-Token. Der Server kann lokal ohne Zusatzaufwand gestartet und von CLI oder SDKs genutzt werden.
+- **Remote-Zugriff (Token-Pflicht)**: Sobald der Server auf externen Schnittstellen lauscht (z. B. `0.0.0.0` oder eine Netzwerk-IP), wird unautorisierter Remote-Zugriff verweigert. Ein Token muss serverseitig via `-grpc-token <token>` oder `ARTIFACT_GRPC_TOKEN=<token>` hinterlegt werden.
+- **Token-Pflicht für Localhost erzwingen**: Um ein Token auch bei Loopback-Verbindungen zu verlangen (z. B. auf geteilten Multi-User-Rechnern), wird `-require-token-localhost` übergeben oder `ARTIFACT_REQUIRE_TOKEN_LOCALHOST=true` gesetzt.
+- **CORS-Schutz**: Browser-übergreifende Anfragen (Cross-Origin) sind standardmäßig gesperrt. Erlaubte Origins können mit `-cors-origins "https://example.com"` freigegeben werden.
+
+### Token in den Clients verwenden
+
+Alle Clients werten automatisch die Umgebungsvariable `ARTIFACT_GRPC_TOKEN` (oder `ARTIFACT_TOKEN`) aus und bieten zudem programmatische Optionen:
+
+- **CLI**: `artifact-cli -token "<token>" ...` oder via `ARTIFACT_GRPC_TOKEN`
+- **Go**: `client.NewClientWithAddr(addr, client.WithToken("<token>"))`
+- **TypeScript**: `new ArtifactClient(addr, undefined, "<token>")`
+- **Python**: `ArtifactClient(addr, token="<token>")`
+- **Rust**: `ArtifactClient::connect_with_token(addr, "<token>")` oder via `ARTIFACT_GRPC_TOKEN`
+- **HTTP / MCP**: Header `Authorization: Bearer <token>` mitliefern
 
 ---
 

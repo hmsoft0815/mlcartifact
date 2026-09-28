@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	version = "dev"
+	version = "0.5.5"
 	name    = "artifact-server"
 )
 

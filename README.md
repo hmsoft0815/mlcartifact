@@ -99,7 +99,7 @@ All four clients cover the full API: write, read, list, delete and the VFS opera
 
 ## Ecosystem & Related Projects
 
-- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - A "Swiss Army Knife" MCP server that can execute scripts (Python, Bash, etc.) stored as artifacts in `mlcartifact`. It allows for dynamic tool execution where the LLM writes a script to the artifact store and `wollmilchsau` executes it in a secure environment.
+- **[wollmilchsau](https://github.com/hmsoft0815/wollmilchsau)** - A "Swiss Army Knife" MCP server that can execute JavaScript (TypeScript) scripts stored as artifacts in `mlcartifact`. It allows for dynamic tool execution where the LLM writes a script to the artifact store and `wollmilchsau` executes it in a secure environment.
 
 ---
 
@@ -207,13 +207,18 @@ All tools except `read_artifact` return structured results with an output schema
 ## CLI Usage
 
 ```bash
+# Upload, download, list, delete
 artifact-cli create ./report.csv --name "Q1 Report" --expires 72
+artifact-cli create -q ./script.sh             # quiet mode: prints only the artifact ID
 artifact-cli download abc123 ./local-copy.csv
 artifact-cli list
 artifact-cli delete abc123
 ```
 
-Connect via `ARTIFACT_GRPC_ADDR` env var (default: `localhost:9590`) or `-addr` flag.
+Global options:
+- `-addr`: gRPC server address (default: `ARTIFACT_GRPC_ADDR` or `localhost:9590`)
+- `-token`: Authentication token for remote access (default: `ARTIFACT_GRPC_TOKEN` or `ARTIFACT_TOKEN`)
+- `-user`: User ID scope (default: `ARTIFACT_USER_ID`)
 
 ---
 
@@ -239,6 +244,28 @@ Connect via `ARTIFACT_GRPC_ADDR` env var (default: `localhost:9590`) or `-addr` 
 | `ARTIFACT_CORS_ORIGINS` | Comma-separated list of allowed browser CORS origins |
 | `ARTIFACT_SOURCE` | Default source tag |
 | `ARTIFACT_USER_ID` | Default user ID |
+
+---
+
+## Authentication & Security
+
+`mlcartifact` is designed for secure-by-default operation:
+
+- **Localhost by default (Zero Config)**: Connections originating from loopback addresses (`127.0.0.1`, `::1`) do **not** require an authentication token by default. You can run the server locally and connect immediately with CLI or SDKs.
+- **Remote Access (Token Required)**: If the server listens on a non-loopback interface (e.g. `0.0.0.0` or a public IP), the server **requires** an authentication token for all remote requests. Configure the token on the server via `-grpc-token <token>` or `ARTIFACT_GRPC_TOKEN=<token>`.
+- **Enforcing Token on Localhost**: To require a token even for loopback connections (e.g. on shared developer machines), pass `-require-token-localhost` or set `ARTIFACT_REQUIRE_TOKEN_LOCALHOST=true`.
+- **CORS Protection**: Cross-origin browser requests are blocked by default. Specific allowed origins can be configured with `-cors-origins "https://example.com"`.
+
+### Configuring Tokens in Clients
+
+All clients automatically check the `ARTIFACT_GRPC_TOKEN` (or `ARTIFACT_TOKEN`) environment variable and provide programmatic options:
+
+- **CLI**: `artifact-cli -token "<token>" ...` or via `ARTIFACT_GRPC_TOKEN`
+- **Go**: `client.NewClientWithAddr(addr, client.WithToken("<token>"))`
+- **TypeScript**: `new ArtifactClient(addr, undefined, "<token>")`
+- **Python**: `ArtifactClient(addr, token="<token>")`
+- **Rust**: `ArtifactClient::connect_with_token(addr, "<token>")` or via `ARTIFACT_GRPC_TOKEN`
+- **HTTP / MCP**: Provide the `Authorization: Bearer <token>` header
 
 ---
 

@@ -82,6 +82,15 @@ func decodeBase64Headers(next http.Handler) http.Handler {
 	})
 }
 
+const maxRequestBytes = 64 << 20
+
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBytes)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	defaultGrpcAddr := os.Getenv("ARTIFACT_GRPC_ADDR")
 	if defaultGrpcAddr == "" {
@@ -91,12 +100,18 @@ func main() {
 	if defaultGrpcToken == "" {
 		defaultGrpcToken = os.Getenv("ARTIFACT_TOKEN")
 	}
+	defaultRequireLocalhost := false
+	if envVal := os.Getenv("ARTIFACT_REQUIRE_TOKEN_LOCALHOST"); envVal == "true" || envVal == "1" {
+		defaultRequireLocalhost = true
+	}
 
 	dump := flag.Bool("dump", false, "Dump available tools as JSON and exit")
 	v := flag.Bool("version", false, "Print version and exit")
-	addr := flag.String("addr", "", "Listen address for HTTP (Streamable HTTP on /mcp, SSE on /sse), e.g. '127.0.0.1:8080' for local only or ':8080' for all interfaces. If empty, uses stdio.")
+	addr := flag.String("addr", "", "Listen address for HTTP (Streamable HTTP on /mcp, SSE on /sse), e.g. '127.0.0.1:8080' for local only or '0.0.0.0:8080' for all interfaces. If empty, uses stdio.")
 	grpcAddr := flag.String("grpc-addr", defaultGrpcAddr, "Listen address for gRPC service (default: '127.0.0.1:9590', or '0.0.0.0:9590' for all interfaces)")
 	grpcToken := flag.String("grpc-token", defaultGrpcToken, "Authentication token required for remote (non-loopback) access. Can also be set via ARTIFACT_GRPC_TOKEN.")
+	requireTokenLocalhost := flag.Bool("require-token-localhost", defaultRequireLocalhost, "Require authentication token even for localhost / loopback connections (default: false)")
+	corsOrigins := flag.String("cors-origins", os.Getenv("ARTIFACT_CORS_ORIGINS"), "Comma-separated list of allowed CORS browser origins (default: none / cross-origin denied)")
 	mcpLimit := flag.Int("mcp-list-limit", 100, "Max artifacts to return in MCP list_artifacts")
 
 	defaultDataDir := ".artifacts"
@@ -109,6 +124,43 @@ func main() {
 	if *v {
 		fmt.Printf("%s version: %s\n", name, version)
 		return
+	}
+
+	// Parse allowed CORS origins
+	var allowedOrigins []string
+	if *corsOrigins != "" {
+		for _, o := range strings.Split(*corsOrigins, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				allowedOrigins = append(allowedOrigins, o)
+			}
+		}
+	}
+
+	// Validate Connect/gRPC address
+	resolvedGrpcAddr, isGrpcLoopback, err := grpc.ListenAddr(*grpcAddr)
+	if err != nil {
+		slog.Error("invalid -grpc-addr", "err", err)
+		os.Exit(1)
+	}
+	if !isGrpcLoopback && *grpcToken == "" {
+		slog.Error("-grpc-addr is not restricted to loopback, but no authentication token is configured (-grpc-token or ARTIFACT_GRPC_TOKEN)")
+		os.Exit(1)
+	}
+
+	// Validate HTTP address if enabled
+	var resolvedAddr string
+	var isAddrLoopback bool
+	if *addr != "" {
+		resolvedAddr, isAddrLoopback, err = grpc.ListenAddr(*addr)
+		if err != nil {
+			slog.Error("invalid -addr", "err", err)
+			os.Exit(1)
+		}
+		if !isAddrLoopback && *grpcToken == "" {
+			slog.Error("-addr is not restricted to loopback, but no authentication token is configured (-grpc-token or ARTIFACT_GRPC_TOKEN)")
+			os.Exit(1)
+		}
 	}
 
 	// Initialize store and set in handlers
@@ -132,30 +184,52 @@ func main() {
 		mux := http.NewServeMux()
 		path, handler := protoconnect.NewArtifactServiceHandler(
 			grpc.NewConnectServer(store),
-			connect.WithInterceptors(grpc.NewAuthInterceptor(*grpcToken)),
+			connect.WithInterceptors(grpc.NewAuthInterceptor(
+				*grpcToken,
+				grpc.WithRequireTokenLocalhost(*requireTokenLocalhost),
+				grpc.WithTrustedOrigins(allowedOrigins),
+			)),
 		)
-		mux.Handle(path, handler)
 
-		slog.Info("Connect/gRPC server started", "addr", *grpcAddr, "remote_token_protected", *grpcToken != "")
+		// Reject unauthorized cross-origin browser requests (CSRF / DNS-rebinding protection)
+		cop := http.NewCrossOriginProtection()
+		for _, o := range allowedOrigins {
+			if err := cop.AddTrustedOrigin(o); err != nil {
+				slog.Warn("invalid cors origin", "origin", o, "err", err)
+			}
+		}
+		mux.Handle(path, cop.Handler(handler))
 
-		// Setup CORS for browser access
-		c := cors.New(cors.Options{
-			AllowedOrigins: []string{"*"}, // Adjust in production
-			AllowedMethods: []string{"GET", "POST", "OPTIONS"},
-			AllowedHeaders: []string{
-				"Connect-Protocol-Version",
-				"Content-Type",
-				"Accept",
-				"Connect-Timeout-Ms",
-				"X-User-Id",
-				"Authorization",
-				"X-Artifact-Token",
-			},
-			ExposedHeaders: []string{"Content-Length"},
-		})
+		slog.Info("Connect/gRPC server started",
+			"addr", resolvedGrpcAddr,
+			"loopback", isGrpcLoopback,
+			"remote_token_protected", *grpcToken != "",
+			"require_token_localhost", *requireTokenLocalhost,
+			"allowed_cors_origins", allowedOrigins,
+		)
+
+		var serverHandler http.Handler = mux
+		if len(allowedOrigins) > 0 {
+			// Setup CORS only for explicitly allowed browser origins
+			c := cors.New(cors.Options{
+				AllowedOrigins: allowedOrigins,
+				AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+				AllowedHeaders: []string{
+					"Connect-Protocol-Version",
+					"Content-Type",
+					"Accept",
+					"Connect-Timeout-Ms",
+					"X-User-Id",
+					"Authorization",
+					"X-Artifact-Token",
+				},
+				ExposedHeaders: []string{"Content-Length"},
+			})
+			serverHandler = c.Handler(serverHandler)
+		}
 
 		// We use h2c to support gRPC/HTTP2 without TLS
-		if err := http.ListenAndServe(*grpcAddr, c.Handler(h2c.NewHandler(mux, &http2.Server{}))); err != nil {
+		if err := http.ListenAndServe(resolvedGrpcAddr, h2c.NewHandler(serverHandler, &http2.Server{})); err != nil {
 			slog.Error("Connect/gRPC server failed", "err", err)
 		}
 	}()
@@ -166,13 +240,49 @@ func main() {
 		// Stateless: the SDK serves protocol 2026-07-28 over HTTP only in this mode.
 		streamable := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{Stateless: true})
 		sse := mcp.NewSSEHandler(getServer, nil)
+
+		mcpAuth := grpc.HTTPAuthMiddleware(*grpcToken, *requireTokenLocalhost, allowedOrigins)
+
 		// Reject foreign browser origins (DNS rebinding protection).
 		cop := http.NewCrossOriginProtection()
+		for _, o := range allowedOrigins {
+			if err := cop.AddTrustedOrigin(o); err != nil {
+				slog.Warn("invalid cors origin", "origin", o, "err", err)
+			}
+		}
+
 		mux := http.NewServeMux()
-		mux.Handle("/mcp", cop.Handler(decodeBase64Headers(streamable)))
-		mux.Handle("/sse", cop.Handler(sse))
-		slog.Info("HTTP server started", "addr", *addr, "streamable", "/mcp", "sse", "/sse", "name", name)
-		if err := http.ListenAndServe(*addr, mux); err != nil {
+		mux.Handle("/mcp", cop.Handler(mcpAuth(decodeBase64Headers(limitBody(streamable)))))
+		mux.Handle("/sse", cop.Handler(mcpAuth(limitBody(sse))))
+
+		if *grpcToken != "" {
+			// Protected Resource Metadata (RFC 9728) for MCP authentication discovery
+			prm := func(w http.ResponseWriter, r *http.Request) {
+				scheme := "http"
+				if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+					scheme = "https"
+				}
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"resource":"%s://%s/mcp","bearer_methods_supported":["header"],"resource_name":"mlcartifact MCP","resource_documentation":"https://mlcgo.eu/products/mlcartifact/"}`,
+					scheme, r.Host)
+			}
+			mux.HandleFunc("/.well-known/oauth-protected-resource", prm)
+			mux.HandleFunc("/.well-known/oauth-protected-resource/mcp", prm)
+		}
+
+		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprintf(w, "ok %s v%s\n", name, version)
+		})
+
+		slog.Info("HTTP server started",
+			"addr", resolvedAddr,
+			"loopback", isAddrLoopback,
+			"streamable", "/mcp",
+			"sse", "/sse",
+			"name", name,
+		)
+		if err := http.ListenAndServe(resolvedAddr, mux); err != nil {
 			slog.Error("http server failed", "err", err)
 			os.Exit(1)
 		}

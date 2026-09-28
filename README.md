@@ -221,9 +221,11 @@ Connect via `ARTIFACT_GRPC_ADDR` env var (default: `localhost:9590`) or `-addr` 
 
 | Flag | Default | Description |
 |---|---|---|
-| `-addr` | _(empty)_ | HTTP listen address (e.g. `127.0.0.1:8080` for local, `:8080` for all): Streamable HTTP on `/mcp`, SSE on `/sse`. Empty = stdio mode. |
-| `-grpc-addr` | `127.0.0.1:9590` | gRPC listen address (e.g. `127.0.0.1:9590` for local, `0.0.0.0:9590` for all interfaces). |
-| `-grpc-token` | _(empty)_ | Authentication token required for remote (non-loopback) access. Localhost access works without token. |
+| `-addr` | _(empty)_ | HTTP listen address (e.g. `127.0.0.1:8080` or `:8080` for local, `0.0.0.0:8080` for all): Streamable HTTP on `/mcp`, SSE on `/sse`. Non-loopback requires token. Empty = stdio mode. |
+| `-grpc-addr` | `127.0.0.1:9590` | gRPC/Connect listen address (e.g. `127.0.0.1:9590` or `:9590` for local, `0.0.0.0:9590` for all interfaces). Non-loopback requires token. |
+| `-grpc-token` | _(empty)_ | Authentication token required for remote (non-loopback) access. Can also be set via `ARTIFACT_GRPC_TOKEN`. |
+| `-require-token-localhost` | `false` | Require authentication token even for localhost / loopback connections (default: false, localhost connects without token). |
+| `-cors-origins` | _(empty)_ | Comma-separated list of allowed browser CORS origins (default: none / all cross-origin browser requests denied). |
 | `-data-dir` | `~/mlcartifact/storage` | Storage directory |
 | `-mcp-list-limit` | `100` | Max items from `list_artifacts` |
 
@@ -232,7 +234,9 @@ Connect via `ARTIFACT_GRPC_ADDR` env var (default: `localhost:9590`) or `-addr` 
 | Variable | Description |
 |---|---|
 | `ARTIFACT_GRPC_ADDR` | gRPC server address (default: `127.0.0.1:9590`) |
-| `ARTIFACT_GRPC_TOKEN` | Authentication token for remote access (also checks `ARTIFACT_TOKEN`; ignored for localhost) |
+| `ARTIFACT_GRPC_TOKEN` | Authentication token for remote access (also checks `ARTIFACT_TOKEN`; ignored for localhost unless required) |
+| `ARTIFACT_REQUIRE_TOKEN_LOCALHOST` | Set to `true` or `1` to require token even for localhost connections |
+| `ARTIFACT_CORS_ORIGINS` | Comma-separated list of allowed browser CORS origins |
 | `ARTIFACT_SOURCE` | Default source tag |
 | `ARTIFACT_USER_ID` | Default user ID |
 

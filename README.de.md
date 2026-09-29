@@ -236,9 +236,13 @@ Globale Optionen:
 
 | Flag | Standard | Beschreibung |
 |---|---|---|
-| `-addr` | _(leer)_ | HTTP-Adresse (z. B. `127.0.0.1:8080` oder `:8080` für lokal, `0.0.0.0:8080` für alle): Streamable HTTP auf `/mcp`, SSE auf `/sse`. Nicht-Loopback erfordert Token. Leer = stdio-Modus. |
-| `-grpc-addr` | `127.0.0.1:9590` | gRPC/Connect-Adresse (z. B. `127.0.0.1:9590` oder `:9590` für lokal, `0.0.0.0:9590` für alle Schnittstellen). Nicht-Loopback erfordert Token. |
-| `-grpc-token` | _(leer)_ | Authentifizierungs-Token für Remote-Zugriff. Kann auch per `ARTIFACT_GRPC_TOKEN` gesetzt werden. |
+| `-addr` | _(leer)_ | HTTP-Adresse (z. B. `127.0.0.1:8080` oder `:8080` für lokal, `0.0.0.0:8080` für alle): Streamable HTTP auf `/mcp`, SSE auf `/sse`. Nicht-Loopback erfordert Authentifizierung. Leer = stdio-Modus. |
+| `-grpc-addr` | `127.0.0.1:9590` | gRPC/Connect-Adresse (z. B. `127.0.0.1:9590` oder `:9590` für lokal, `0.0.0.0:9590` für alle Schnittstellen). Nicht-Loopback erfordert Authentifizierung. |
+| `-grpc-token` | _(leer)_ | Statisches Authentifizierungs-Token für Remote-Zugriff. Kann auch per `ARTIFACT_GRPC_TOKEN` gesetzt werden. |
+| `-auth-endpoint` | _(leer)_ | Optionale HTTP-URL für Forward-Auth / Token-Validierung (z. B. `mlcauth` oder Supabase). Kann auch per `ARTIFACT_AUTH_ENDPOINT` gesetzt werden. |
+| `-auth-header` | _(leer)_ | Optionale kommagetrennte Header für den Auth-Endpunkt (z. B. `apikey:xxx`). Kann auch per `ARTIFACT_AUTH_HEADERS` gesetzt werden. |
+| `-auth-service-name` | `mlcartifact` | Optional erforderlicher Servicename in Claims/Berechtigungen. Kann auch per `ARTIFACT_AUTH_SERVICE_NAME` gesetzt werden. |
+| `-auth-cache-ttl` | `60s` | Cache-Dauer für validierte Tokens im Arbeitsspeicher. Kann auch per `ARTIFACT_AUTH_CACHE_TTL` gesetzt werden. |
 | `-require-token-localhost` | `false` | Token-Pflicht auch für Localhost / Loopback-Verbindungen (Standard: false, Localhost verbindet ohne Token). |
 | `-cors-origins` | _(leer)_ | Kommagetrennte Liste erlaubter Browser-CORS-Origins (Standard: keine / alle Cross-Origin-Browser-Anfragen abgewiesen). |
 | `-data-dir` | `~/mlcartifact/storage` | Speicherverzeichnis |
@@ -249,8 +253,12 @@ Globale Optionen:
 | Variable | Beschreibung |
 |---|---|
 | `ARTIFACT_GRPC_ADDR` | gRPC-Adresse (Standard: `127.0.0.1:9590`) |
-| `ARTIFACT_GRPC_TOKEN` | Authentifizierungs-Token für Remote-Zugriff (prüft auch `ARTIFACT_TOKEN`; für Localhost ignoriert, außer bei `-require-token-localhost`) |
-| `ARTIFACT_REQUIRE_TOKEN_LOCALHOST` | Auf `true` oder `1` setzen, um Token auch für Localhost zu verlangen |
+| `ARTIFACT_GRPC_TOKEN` | Statisches Authentifizierungs-Token für Remote-Zugriff (prüft auch `ARTIFACT_TOKEN`; für Localhost ignoriert, außer bei `-require-token-localhost`) |
+| `ARTIFACT_AUTH_ENDPOINT` | Optionale HTTP-URL zur dynamischen Token-Validierung (Forward-Auth / Supabase) |
+| `ARTIFACT_AUTH_HEADERS` | Optionale Extra-Header für den Auth-Endpunkt (z. B. `apikey:xxx`) |
+| `ARTIFACT_AUTH_SERVICE_NAME` | Service-Prüfung (Standard: `mlcartifact`) |
+| `ARTIFACT_AUTH_CACHE_TTL` | Cache-Dauer für validierte Tokens (Standard: `60s`) |
+| `ARTIFACT_REQUIRE_TOKEN_LOCALHOST` | Auf `true` oder `1` setzen, um Authentifizierung auch für Localhost zu verlangen |
 | `ARTIFACT_CORS_ORIGINS` | Kommagetrennte Liste erlaubter Browser-CORS-Origins |
 | `ARTIFACT_SOURCE` | Standard-Quell-Tag |
 | `ARTIFACT_USER_ID` | Standard-Benutzer-ID |
@@ -262,9 +270,31 @@ Globale Optionen:
 `mlcartifact` ist standardmäßig auf sicheren Betrieb ausgelegt:
 
 - **Localhost ohne Token (Zero-Config)**: Verbindungen von Loopback-Adressen (`127.0.0.1`, `::1`) erfordern standardmäßig **kein** Authentifizierungs-Token. Der Server kann lokal ohne Zusatzaufwand gestartet und von CLI oder SDKs genutzt werden.
-- **Remote-Zugriff (Token-Pflicht)**: Sobald der Server auf externen Schnittstellen lauscht (z. B. `0.0.0.0` oder eine Netzwerk-IP), wird unautorisierter Remote-Zugriff verweigert. Ein Token muss serverseitig via `-grpc-token <token>` oder `ARTIFACT_GRPC_TOKEN=<token>` hinterlegt werden.
+- **Remote-Zugriff (Authentifizierungspflicht)**: Sobald der Server auf externen Schnittstellen lauscht (z. B. `0.0.0.0` oder eine Netzwerk-IP), wird unautorisierter Remote-Zugriff verweigert. Ein Token oder ein Auth-Endpunkt muss via `-grpc-token` bzw. `-auth-endpoint` konfiguriert sein.
 - **Token-Pflicht für Localhost erzwingen**: Um ein Token auch bei Loopback-Verbindungen zu verlangen (z. B. auf geteilten Multi-User-Rechnern), wird `-require-token-localhost` übergeben oder `ARTIFACT_REQUIRE_TOKEN_LOCALHOST=true` gesetzt.
 - **CORS-Schutz**: Browser-übergreifende Anfragen (Cross-Origin) sind standardmäßig gesperrt. Erlaubte Origins können mit `-cors-origins "https://example.com"` freigegeben werden.
+
+### Pluggable Token-Validierung (mlcauth & Supabase)
+
+Neben statischen Shared-Tokens (`-grpc-token`) unterstützt `mlcartifact` dynamische HTTP-Token-Validierung via `-auth-endpoint`. Eingehende Bearer-Tokens werden dabei in Echtzeit beim konfigurierten Dienst verifiziert und mit In-Memory-TTL zwischengespeichert.
+
+#### 1. Forward-Auth (`mlcauth`)
+Validiert Tokens gegen einen internen Forward-Auth-Dienst. Die Identität des Aufrufers (`X-User-ID`, `X-User-Role`) wird automatisch aus den Antwort-Headern übernommen und für die Benutzer-Isolation im Speicher verwendet:
+```bash
+artifact-server -addr 0.0.0.0:8082 -grpc-addr 0.0.0.0:9590 \
+  -auth-endpoint "http://mlcauth:8080/auth/forward?svc=mlcartifact"
+```
+Fehlt dem Benutzer die Freischaltung für `mlcartifact`, antwortet der Auth-Service mit `403 Forbidden`, was von `mlcartifact` direkt abgewiesen wird.
+
+#### 2. Supabase Auth (OAuth2 / UserInfo)
+Validiert Tokens gegen die Supabase-Auth-API und prüft Service-Berechtigungen:
+```bash
+artifact-server -addr 0.0.0.0:8082 -grpc-addr 0.0.0.0:9590 \
+  -auth-endpoint "https://<your-project-id>.supabase.co/auth/v1/user" \
+  -auth-header "apikey:<SUPABASE_ANON_KEY>" \
+  -auth-service-name "mlcartifact"
+```
+Die Benutzer-ID wird aus der JSON-Antwort (`id`/`sub`) extrahiert und `app_metadata.services` auf die Freischaltung des konfigurierten Servicenamens überprüft.
 
 ### Token in den Clients verwenden
 

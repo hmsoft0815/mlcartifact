@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 	"github.com/hmsoft0815/mlcartifact/internal/grpc"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
@@ -159,7 +161,7 @@ func TestSecurity_B_20260928_03_MCP_HTTP(t *testing.T) {
 
 	prm := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"resource":"http://%s/mcp"}`, r.Host)
+		_, _ = fmt.Fprintf(w, `{"resource":"http://%s/mcp"}`, r.Host)
 	}
 	mux.HandleFunc("/.well-known/oauth-protected-resource", prm)
 	mux.HandleFunc("/.well-known/oauth-protected-resource/mcp", prm)
@@ -199,4 +201,110 @@ func TestSecurity_B_20260928_03_MCP_HTTP(t *testing.T) {
 	assert.NotEqual(t, http.StatusUnauthorized, resLocal.StatusCode)
 	assert.NotEqual(t, http.StatusForbidden, resLocal.StatusCode)
 }
+
+func TestServer_HTTPValidator_ConnectAndMCP(t *testing.T) {
+	// Mock external auth server (Forward-Auth like mlcauth)
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if token == "Bearer valid-user-token" {
+			w.Header().Set("X-User-ID", "forward-user-42")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if token == "Bearer forbidden-token" {
+			http.Error(w, "forbidden: service not allowed", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "unauthorized: token invalid", http.StatusUnauthorized)
+	}))
+	defer authServer.Close()
+
+	validator := auth.NewHTTPTokenValidator(auth.HTTPValidatorConfig{
+		Endpoint: authServer.URL,
+		CacheTTL: 10 * time.Millisecond,
+	})
+
+	tempDir := t.TempDir()
+	store := storage.NewStore(tempDir)
+
+	// 1. Connect/gRPC Handler setup with HTTPTokenValidator and requireTokenLocalhost=true
+	muxConnect := http.NewServeMux()
+	path, handler := protoconnect.NewArtifactServiceHandler(
+		grpc.NewConnectServer(store),
+		connect.WithInterceptors(grpc.NewAuthInterceptorWithValidator(
+			validator,
+			grpc.WithRequireTokenLocalhost(true),
+		)),
+	)
+	muxConnect.Handle(path, handler)
+	tsConnect := httptest.NewServer(muxConnect)
+	defer tsConnect.Close()
+
+	// A. Valid token -> 200 OK
+	reqValid, err := http.NewRequest("POST", tsConnect.URL+"/artifact.v1.ArtifactService/List", bytes.NewReader([]byte("{}")))
+	require.NoError(t, err)
+	reqValid.Header.Set("Content-Type", "application/json")
+	reqValid.Header.Set("Authorization", "Bearer valid-user-token")
+	resValid, err := http.DefaultClient.Do(reqValid)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resValid.StatusCode)
+
+	// B. Invalid token -> 401 Unauthorized
+	reqInvalid, err := http.NewRequest("POST", tsConnect.URL+"/artifact.v1.ArtifactService/List", bytes.NewReader([]byte("{}")))
+	require.NoError(t, err)
+	reqInvalid.Header.Set("Content-Type", "application/json")
+	reqInvalid.Header.Set("Authorization", "Bearer bad-token")
+	resInvalid, err := http.DefaultClient.Do(reqInvalid)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, resInvalid.StatusCode)
+
+	// C. Forbidden token -> 403 Forbidden
+	reqForbidden, err := http.NewRequest("POST", tsConnect.URL+"/artifact.v1.ArtifactService/List", bytes.NewReader([]byte("{}")))
+	require.NoError(t, err)
+	reqForbidden.Header.Set("Content-Type", "application/json")
+	reqForbidden.Header.Set("Authorization", "Bearer forbidden-token")
+	resForbidden, err := http.DefaultClient.Do(reqForbidden)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, resForbidden.StatusCode)
+
+	// 2. MCP HTTP Middleware setup with HTTPTokenValidator and requireTokenLocalhost=true
+	mcpServer := newServer()
+	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return mcpServer }, &mcp.StreamableHTTPOptions{Stateless: true})
+	mcpAuth := grpc.HTTPAuthMiddlewareWithValidator(validator, true, nil)
+
+	muxMCP := http.NewServeMux()
+	muxMCP.Handle("/mcp", mcpAuth(streamable))
+	tsMCP := httptest.NewServer(muxMCP)
+	defer tsMCP.Close()
+
+	// A. MCP with valid token
+	reqMCPValid, err := http.NewRequest("POST", tsMCP.URL+"/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"ping","id":1}`)))
+	require.NoError(t, err)
+	reqMCPValid.Header.Set("Content-Type", "application/json")
+	reqMCPValid.Header.Set("Authorization", "Bearer valid-user-token")
+	resMCPValid, err := http.DefaultClient.Do(reqMCPValid)
+	require.NoError(t, err)
+	assert.NotEqual(t, http.StatusUnauthorized, resMCPValid.StatusCode)
+	assert.NotEqual(t, http.StatusForbidden, resMCPValid.StatusCode)
+
+	// B. MCP with invalid token -> 401
+	reqMCPInvalid, err := http.NewRequest("POST", tsMCP.URL+"/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"ping","id":1}`)))
+	require.NoError(t, err)
+	reqMCPInvalid.Header.Set("Content-Type", "application/json")
+	reqMCPInvalid.Header.Set("Authorization", "Bearer bad-token")
+	resMCPInvalid, err := http.DefaultClient.Do(reqMCPInvalid)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, resMCPInvalid.StatusCode)
+
+	// C. MCP with forbidden token -> 403
+	reqMCPForbidden, err := http.NewRequest("POST", tsMCP.URL+"/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"ping","id":1}`)))
+	require.NoError(t, err)
+	reqMCPForbidden.Header.Set("Content-Type", "application/json")
+	reqMCPForbidden.Header.Set("Authorization", "Bearer forbidden-token")
+	resMCPForbidden, err := http.DefaultClient.Do(reqMCPForbidden)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, resMCPForbidden.StatusCode)
+}
+
+
 

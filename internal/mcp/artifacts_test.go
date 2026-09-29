@@ -2,19 +2,16 @@ package mcp
 
 import (
 	"context"
-	"os"
 	"testing"
 
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMCP_Security_InvalidUserID(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "artifact-mcp-sec-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
+	tempDir := t.TempDir()
 	s := storage.NewStore(tempDir)
 	SetStore(s)
 	ctx := context.Background()
@@ -22,7 +19,7 @@ func TestMCP_Security_InvalidUserID(t *testing.T) {
 	badUser := "../../evil-user"
 
 	// 1. WriteArtifact
-	_, _, err = WriteArtifact(ctx, nil, WriteArtifactArgs{
+	_, _, err := WriteArtifact(ctx, nil, WriteArtifactArgs{
 		Filename: "evil.txt",
 		Content:  "content",
 		UserID:   badUser,
@@ -87,10 +84,7 @@ func TestMCP_Security_InvalidUserID(t *testing.T) {
 }
 
 func TestMCP_Security_NonExistentUser_NoErrorLeak(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "artifact-mcp-leak-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
+	tempDir := t.TempDir()
 	s := storage.NewStore(tempDir)
 	SetStore(s)
 	ctx := context.Background()
@@ -98,7 +92,7 @@ func TestMCP_Security_NonExistentUser_NoErrorLeak(t *testing.T) {
 	nonExistentUser := "user-u2"
 
 	// 1. ReadArtifact
-	_, _, err = ReadArtifact(ctx, nil, ReadArtifactArgs{
+	_, _, err := ReadArtifact(ctx, nil, ReadArtifactArgs{
 		ID:     "missing-id",
 		UserID: nonExistentUser,
 	})
@@ -126,10 +120,7 @@ func TestMCP_Security_NonExistentUser_NoErrorLeak(t *testing.T) {
 }
 
 func TestMCP_VFSPatch_BinaryFile(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "artifact-mcp-binary-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
+	tempDir := t.TempDir()
 	s := storage.NewStore(tempDir)
 	SetStore(s)
 	ctx := context.Background()
@@ -146,4 +137,47 @@ func TestMCP_VFSPatch_BinaryFile(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot patch binary file")
 }
+
+func TestMCP_UserID_EnforcedFromAuthContext(t *testing.T) {
+	tempDir := t.TempDir()
+	s := storage.NewStore(tempDir)
+	SetStore(s)
+
+	id := &auth.AuthIdentity{UserID: "authenticated-user"}
+	authCtx := auth.WithAuthIdentity(context.Background(), id)
+
+	// User writes artifact with args.UserID = "spoofed-user"
+	// Should be saved under "authenticated-user"
+	_, res, err := WriteArtifact(authCtx, nil, WriteArtifactArgs{
+		Filename: "auth-test.txt",
+		Content:  "secret-content",
+		UserID:   "spoofed-user",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.ID)
+
+	// Reading with spoofed-user should fail (not found)
+	_, _, err = ReadArtifact(context.Background(), nil, ReadArtifactArgs{
+		ID:     res.ID,
+		UserID: "spoofed-user",
+	})
+	require.Error(t, err)
+
+	// Reading with authCtx (authenticated-user) succeeds even if args.UserID is empty or wrong
+	_, content, err := ReadArtifact(authCtx, nil, ReadArtifactArgs{
+		ID:     res.ID,
+		UserID: "spoofed-user",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, content) // ReadArtifact returns textResult in mcp.CallToolResult
+
+	// ListArtifacts with authCtx should show the artifact
+	_, list, err := ListArtifacts(authCtx, nil, ListArtifactsArgs{
+		UserID: "spoofed-user",
+	})
+	require.NoError(t, err)
+	assert.Len(t, list.Artifacts, 1)
+	assert.Equal(t, "auth-test.txt", list.Artifacts[0].Filename)
+}
+
 

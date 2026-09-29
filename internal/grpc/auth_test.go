@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 	"github.com/hmsoft0815/mlcartifact/proto/protoconnect"
@@ -360,5 +361,91 @@ func TestHTTPAuthMiddleware(t *testing.T) {
 	rec6 := httptest.NewRecorder()
 	handlerStrict.ServeHTTP(rec6, req6)
 	assert.Equal(t, http.StatusOK, rec6.Code)
+}
+
+type mockPluggableValidator struct {
+	expectedToken string
+	identity      *auth.AuthIdentity
+	returnErr     error
+}
+
+func (m *mockPluggableValidator) ValidateToken(ctx context.Context, token string) (*auth.AuthIdentity, error) {
+	if m.returnErr != nil {
+		return nil, m.returnErr
+	}
+	if token != m.expectedToken {
+		return nil, auth.ErrUnauthenticated
+	}
+	return m.identity, nil
+}
+
+func TestAuthInterceptor_PluggableValidator(t *testing.T) {
+	mockVal := &mockPluggableValidator{
+		expectedToken: "jwt-123",
+		identity: &auth.AuthIdentity{
+			UserID: "user-from-jwt",
+			Email:  "test@jwt.com",
+		},
+	}
+
+	var capturedIdentity *auth.AuthIdentity
+	interceptor := NewAuthInterceptorWithValidator(mockVal)
+	unary := interceptor(func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		capturedIdentity = auth.AuthIdentityFromContext(ctx)
+		return connect.NewResponse(&pb.ListResponse{}), nil
+	})
+
+	// 1. Remote request with valid token -> success & identity passed in context
+	req1 := connect.NewRequest(&pb.ListRequest{})
+	req1.Header().Set("Authorization", "Bearer jwt-123")
+	wrapped1 := &mockAnyRequest{
+		AnyRequest: req1,
+		peer:       connect.Peer{Addr: "192.168.1.100:12345", Protocol: connect.ProtocolConnect},
+	}
+	_, err := unary(context.Background(), wrapped1)
+	require.NoError(t, err)
+	require.NotNil(t, capturedIdentity)
+	assert.Equal(t, "user-from-jwt", capturedIdentity.UserID)
+
+	// 2. Remote request with forbidden error
+	mockVal.returnErr = auth.ErrForbidden
+	_, err = unary(context.Background(), wrapped1)
+	require.Error(t, err)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+}
+
+func TestHTTPAuthMiddleware_PluggableValidator(t *testing.T) {
+	mockVal := &mockPluggableValidator{
+		expectedToken: "jwt-xyz",
+		identity: &auth.AuthIdentity{
+			UserID: "http-user",
+		},
+	}
+
+	var capturedUser string
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if id := auth.AuthIdentityFromContext(r.Context()); id != nil {
+			capturedUser = id.UserID
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mw := HTTPAuthMiddlewareWithValidator(mockVal, true, nil)
+	handler := mw(nextHandler)
+
+	// Valid token
+	req := httptest.NewRequest("GET", "/mcp", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Authorization", "Bearer jwt-xyz")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "http-user", capturedUser)
+
+	// Forbidden token
+	mockVal.returnErr = auth.ErrForbidden
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req)
+	assert.Equal(t, http.StatusForbidden, rec2.Code)
 }
 

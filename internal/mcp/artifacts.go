@@ -15,11 +15,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var store = storage.NewStore(".artifacts")
+
+// resolveMCPUserID returns the verified UserID from the context if present,
+// otherwise falling back to the caller-supplied user ID.
+func resolveMCPUserID(ctx context.Context, requested string) string {
+	if id := auth.AuthIdentityFromContext(ctx); id != nil && id.UserID != "" {
+		return id.UserID
+	}
+	return requested
+}
 
 // SetStore updates the global store instance used by all MCP handlers.
 func SetStore(s *storage.Store) {
@@ -142,13 +152,15 @@ func WriteArtifact(ctx context.Context, req *mcp.CallToolRequest, args WriteArti
 		return nil, WriteArtifactResult{}, errors.New("filename and content must not be empty")
 	}
 
+	userID := resolveMCPUserID(ctx, args.UserID)
+
 	meta, err := store.Write(
 		args.Filename,
 		[]byte(args.Content),
 		args.MimeType,
 		args.ExpiresInHours,
 		"mcp-tool", // source
-		args.UserID,
+		userID,
 		args.Description,
 		args.Metadata,
 		args.VirtualPath,
@@ -157,7 +169,7 @@ func WriteArtifact(ctx context.Context, req *mcp.CallToolRequest, args WriteArti
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, WriteArtifactResult{}, errors.New("invalid user_id")
 		}
-		slog.Error("failed to write artifact via MCP", "error", err, "user_id", args.UserID)
+		slog.Error("failed to write artifact via MCP", "error", err, "user_id", userID)
 		return nil, WriteArtifactResult{}, errors.New("failed to write artifact")
 	}
 
@@ -199,7 +211,9 @@ func ReadArtifact(ctx context.Context, req *mcp.CallToolRequest, args ReadArtifa
 		return nil, nil, errors.New("id must not be empty")
 	}
 
-	content, meta, err := store.Read(args.ID, args.UserID)
+	userID := resolveMCPUserID(ctx, args.UserID)
+
+	content, meta, err := store.Read(args.ID, userID)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, nil, errors.New("invalid user_id")
@@ -207,7 +221,7 @@ func ReadArtifact(ctx context.Context, req *mcp.CallToolRequest, args ReadArtifa
 		if errors.Is(err, storage.ErrArtifactNotFound) || err.Error() == "artifact not found" {
 			return nil, nil, fmt.Errorf("artifact %q not found", args.ID)
 		}
-		slog.Error("failed to read artifact via MCP", "error", err, "id", args.ID, "user_id", args.UserID)
+		slog.Error("failed to read artifact via MCP", "error", err, "id", args.ID, "user_id", userID)
 		return nil, nil, fmt.Errorf("failed to read artifact %q", args.ID)
 	}
 
@@ -237,12 +251,13 @@ type ListArtifactsArgs struct {
 // ListArtifacts returns a flat list of available artifacts.
 func ListArtifacts(ctx context.Context, req *mcp.CallToolRequest, args ListArtifactsArgs) (*mcp.CallToolResult, ArtifactList, error) {
 	// We limit MCP results as LLMs don't need huge lists.
-	items, err := store.List(args.UserID, MCPListLimit, 0, "")
+	userID := resolveMCPUserID(ctx, args.UserID)
+	items, err := store.List(userID, MCPListLimit, 0, "")
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, ArtifactList{}, errors.New("invalid user_id")
 		}
-		slog.Error("failed to list artifacts via MCP", "error", err, "user_id", args.UserID)
+		slog.Error("failed to list artifacts via MCP", "error", err, "user_id", userID)
 		return nil, ArtifactList{}, errors.New("failed to list artifacts")
 	}
 	return nil, newList(items), nil
@@ -266,12 +281,14 @@ func DeleteArtifact(ctx context.Context, req *mcp.CallToolRequest, args DeleteAr
 		return nil, DeleteArtifactResult{}, errors.New("id must not be empty")
 	}
 
-	deleted, err := store.Delete(args.ID, args.UserID)
+	userID := resolveMCPUserID(ctx, args.UserID)
+
+	deleted, err := store.Delete(args.ID, userID)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, DeleteArtifactResult{}, errors.New("invalid user_id")
 		}
-		slog.Error("failed to delete artifact via MCP", "error", err, "id", args.ID, "user_id", args.UserID)
+		slog.Error("failed to delete artifact via MCP", "error", err, "id", args.ID, "user_id", userID)
 		return nil, DeleteArtifactResult{}, fmt.Errorf("failed to delete artifact %q", args.ID)
 	}
 	if !deleted {
@@ -300,7 +317,8 @@ type VFSPatchResult struct {
 
 // VFSPatch modifies an artifact's content.
 func VFSPatch(ctx context.Context, req *mcp.CallToolRequest, args VFSPatchArgs) (*mcp.CallToolResult, VFSPatchResult, error) {
-	newSize, err := store.Patch(args.ID, args.UserID, []byte(args.Content), args.LineStart, args.LineEnd, args.Append)
+	userID := resolveMCPUserID(ctx, args.UserID)
+	newSize, err := store.Patch(args.ID, userID, []byte(args.Content), args.LineStart, args.LineEnd, args.Append)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, VFSPatchResult{}, errors.New("invalid user_id")
@@ -311,7 +329,7 @@ func VFSPatch(ctx context.Context, req *mcp.CallToolRequest, args VFSPatchArgs) 
 		if errors.Is(err, storage.ErrBinaryFile) {
 			return nil, VFSPatchResult{}, errors.New("cannot patch binary file: patch is only supported for text files")
 		}
-		slog.Error("failed to patch artifact via MCP", "error", err, "id", args.ID, "user_id", args.UserID)
+		slog.Error("failed to patch artifact via MCP", "error", err, "id", args.ID, "user_id", userID)
 		return nil, VFSPatchResult{}, fmt.Errorf("failed to patch artifact %q", args.ID)
 	}
 	return nil, VFSPatchResult{Success: true, NewSize: newSize}, nil
@@ -325,12 +343,13 @@ type VFSListArgs struct {
 
 // VFSList lists a virtual directory.
 func VFSList(ctx context.Context, req *mcp.CallToolRequest, args VFSListArgs) (*mcp.CallToolResult, ArtifactList, error) {
-	items, err := store.List(args.UserID, MCPListLimit, 0, args.Path)
+	userID := resolveMCPUserID(ctx, args.UserID)
+	items, err := store.List(userID, MCPListLimit, 0, args.Path)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, ArtifactList{}, errors.New("invalid user_id")
 		}
-		slog.Error("failed to list vfs via MCP", "error", err, "path", args.Path, "user_id", args.UserID)
+		slog.Error("failed to list vfs via MCP", "error", err, "path", args.Path, "user_id", userID)
 		return nil, ArtifactList{}, fmt.Errorf("failed to list %q", args.Path)
 	}
 	return nil, newList(items), nil
@@ -344,12 +363,13 @@ type VFSFindArgs struct {
 
 // VFSFind searches for artifacts.
 func VFSFind(ctx context.Context, req *mcp.CallToolRequest, args VFSFindArgs) (*mcp.CallToolResult, ArtifactList, error) {
-	items, err := store.Find(args.UserID, args.Pattern)
+	userID := resolveMCPUserID(ctx, args.UserID)
+	items, err := store.Find(userID, args.Pattern)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, ArtifactList{}, errors.New("invalid user_id")
 		}
-		slog.Error("failed to find artifacts via MCP", "error", err, "pattern", args.Pattern, "user_id", args.UserID)
+		slog.Error("failed to find artifacts via MCP", "error", err, "pattern", args.Pattern, "user_id", userID)
 		return nil, ArtifactList{}, errors.New("failed to find artifacts")
 	}
 	return nil, newList(items), nil

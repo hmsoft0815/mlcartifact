@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
 	pb "github.com/hmsoft0815/mlcartifact/proto"
 )
@@ -28,10 +29,20 @@ func NewServer(store *storage.Store) *Server {
 	return &Server{Store: store}
 }
 
+// resolveUserID returns the verified UserID from the authenticated identity if present,
+// otherwise falling back to the requested user ID.
+func resolveUserID(ctx context.Context, requested string) string {
+	if id := auth.AuthIdentityFromContext(ctx); id != nil && id.UserID != "" {
+		return id.UserID
+	}
+	return requested
+}
+
 // Write handles the creation or update of an artifact.
 // It maps the proto metadata and content to the storage.Write method.
 func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResponse, error) {
-	slog.Info("gRPC Write request", "filename", req.Filename, "vpath", req.VirtualPath, "user_id", req.UserId)
+	userID := resolveUserID(ctx, req.UserId)
+	slog.Info("gRPC Write request", "filename", req.Filename, "vpath", req.VirtualPath, "user_id", userID)
 
 	// Map proto metadata to map[string]interface{}
 	metadata := make(map[string]interface{})
@@ -45,7 +56,7 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 		req.MimeType,
 		int(req.ExpiresHours),
 		req.Source,
-		req.UserId,
+		userID,
 		req.Description,
 		metadata,
 		req.VirtualPath,
@@ -55,7 +66,7 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
 		}
-		slog.Error("failed to write artifact", "error", err, "user_id", req.UserId)
+		slog.Error("failed to write artifact", "error", err, "user_id", userID)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to write artifact"))
 	}
 
@@ -70,9 +81,10 @@ func (s *Server) Write(ctx context.Context, req *pb.WriteRequest) (*pb.WriteResp
 
 // Read retrieves an artifact's content and metadata by ID, filename or virtual path.
 func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
-	slog.Info("gRPC Read request", "id", req.Id, "user_id", req.UserId)
+	userID := resolveUserID(ctx, req.UserId)
+	slog.Info("gRPC Read request", "id", req.Id, "user_id", userID)
 
-	content, meta, err := s.Store.Read(req.Id, req.UserId)
+	content, meta, err := s.Store.Read(req.Id, userID)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
@@ -80,7 +92,7 @@ func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 		if errors.Is(err, storage.ErrArtifactNotFound) || err.Error() == "artifact not found" {
 			return nil, connect.NewError(connect.CodeNotFound, errors.New("artifact not found"))
 		}
-		slog.Error("failed to read artifact", "error", err, "id", req.Id, "user_id", req.UserId)
+		slog.Error("failed to read artifact", "error", err, "id", req.Id, "user_id", userID)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to read artifact"))
 	}
 
@@ -94,13 +106,14 @@ func (s *Server) Read(ctx context.Context, req *pb.ReadRequest) (*pb.ReadRespons
 
 // Delete removes an artifact permanently.
 func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	slog.Info("gRPC Delete request", "id", req.Id, "user_id", req.UserId)
-	deleted, err := s.Store.Delete(req.Id, req.UserId)
+	userID := resolveUserID(ctx, req.UserId)
+	slog.Info("gRPC Delete request", "id", req.Id, "user_id", userID)
+	deleted, err := s.Store.Delete(req.Id, userID)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
 		}
-		slog.Error("failed to delete artifact", "error", err, "id", req.Id, "user_id", req.UserId)
+		slog.Error("failed to delete artifact", "error", err, "id", req.Id, "user_id", userID)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to delete artifact"))
 	}
 	if !deleted {
@@ -111,21 +124,22 @@ func (s *Server) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteR
 
 // List returns a paginated list of artifacts or a virtual directory listing.
 func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	slog.Info("gRPC List request", "user_id", req.UserId, "vdir", req.DirPath, "source", req.Source)
+	userID := resolveUserID(ctx, req.UserId)
+	slog.Info("gRPC List request", "user_id", userID, "vdir", req.DirPath, "source", req.Source)
 	var items []*storage.ArtifactMetadata
 	var err error
 	if req.Source == "" {
-		items, err = s.Store.List(req.UserId, int(req.Limit), int(req.Offset), req.DirPath)
+		items, err = s.Store.List(userID, int(req.Limit), int(req.Offset), req.DirPath)
 	} else {
 		// The store knows nothing about sources, so filter here and paginate afterwards.
-		items, err = s.Store.List(req.UserId, 0, 0, req.DirPath)
+		items, err = s.Store.List(userID, 0, 0, req.DirPath)
 		items = paginate(filterSource(items, req.Source), int(req.Limit), int(req.Offset))
 	}
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
 		}
-		slog.Error("failed to list artifacts", "error", err, "user_id", req.UserId)
+		slog.Error("failed to list artifacts", "error", err, "user_id", userID)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list artifacts"))
 	}
 
@@ -150,8 +164,9 @@ func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespons
 
 // Patch updates part of an artifact's content.
 func (s *Server) Patch(ctx context.Context, req *pb.PatchRequest) (*pb.PatchResponse, error) {
-	slog.Info("gRPC Patch request", "id", req.Id, "user_id", req.UserId)
-	newSize, err := s.Store.Patch(req.Id, req.UserId, req.Content, int(req.LineStart), int(req.LineEnd), req.Append)
+	userID := resolveUserID(ctx, req.UserId)
+	slog.Info("gRPC Patch request", "id", req.Id, "user_id", userID)
+	newSize, err := s.Store.Patch(req.Id, userID, req.Content, int(req.LineStart), int(req.LineEnd), req.Append)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
@@ -162,7 +177,7 @@ func (s *Server) Patch(ctx context.Context, req *pb.PatchRequest) (*pb.PatchResp
 		if errors.Is(err, storage.ErrBinaryFile) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("cannot patch binary file: patch is only supported for text files"))
 		}
-		slog.Error("failed to patch artifact", "error", err, "id", req.Id, "user_id", req.UserId)
+		slog.Error("failed to patch artifact", "error", err, "id", req.Id, "user_id", userID)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to patch artifact"))
 	}
 
@@ -175,13 +190,14 @@ func (s *Server) Patch(ctx context.Context, req *pb.PatchRequest) (*pb.PatchResp
 
 // Find searches for artifacts by virtual path pattern.
 func (s *Server) Find(ctx context.Context, req *pb.FindRequest) (*pb.ListResponse, error) {
-	slog.Info("gRPC Find request", "pattern", req.Pattern, "user_id", req.UserId)
-	items, err := s.Store.Find(req.UserId, req.Pattern)
+	userID := resolveUserID(ctx, req.UserId)
+	slog.Info("gRPC Find request", "pattern", req.Pattern, "user_id", userID)
+	items, err := s.Store.Find(userID, req.Pattern)
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUserID) || errors.Is(err, storage.ErrPathEscape) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid user_id"))
 		}
-		slog.Error("failed to find artifacts", "error", err, "user_id", req.UserId)
+		slog.Error("failed to find artifacts", "error", err, "user_id", userID)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to find artifacts"))
 	}
 

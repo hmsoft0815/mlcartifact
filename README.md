@@ -237,9 +237,13 @@ Global options:
 
 | Flag | Default | Description |
 |---|---|---|
-| `-addr` | _(empty)_ | HTTP listen address (e.g. `127.0.0.1:8080` or `:8080` for local, `0.0.0.0:8080` for all): Streamable HTTP on `/mcp`, SSE on `/sse`. Non-loopback requires token. Empty = stdio mode. |
-| `-grpc-addr` | `127.0.0.1:9590` | gRPC/Connect listen address (e.g. `127.0.0.1:9590` or `:9590` for local, `0.0.0.0:9590` for all interfaces). Non-loopback requires token. |
-| `-grpc-token` | _(empty)_ | Authentication token required for remote (non-loopback) access. Can also be set via `ARTIFACT_GRPC_TOKEN`. |
+| `-addr` | _(empty)_ | HTTP listen address (e.g. `127.0.0.1:8080` or `:8080` for local, `0.0.0.0:8080` for all): Streamable HTTP on `/mcp`, SSE on `/sse`. Non-loopback requires authentication. Empty = stdio mode. |
+| `-grpc-addr` | `127.0.0.1:9590` | gRPC/Connect listen address (e.g. `127.0.0.1:9590` or `:9590` for local, `0.0.0.0:9590` for all interfaces). Non-loopback requires authentication. |
+| `-grpc-token` | _(empty)_ | Static authentication token required for remote access. Can also be set via `ARTIFACT_GRPC_TOKEN`. |
+| `-auth-endpoint` | _(empty)_ | Optional HTTP URL for Forward-Auth / token validation (e.g. `mlcauth` or Supabase). Can also be set via `ARTIFACT_AUTH_ENDPOINT`. |
+| `-auth-header` | _(empty)_ | Optional comma-separated headers for auth-endpoint (e.g. `apikey:xxx`). Can also be set via `ARTIFACT_AUTH_HEADERS`. |
+| `-auth-service-name` | `mlcartifact` | Optional required service name in user claims/services. Can also be set via `ARTIFACT_AUTH_SERVICE_NAME`. |
+| `-auth-cache-ttl` | `60s` | In-memory token validation cache duration. Can also be set via `ARTIFACT_AUTH_CACHE_TTL`. |
 | `-require-token-localhost` | `false` | Require authentication token even for localhost / loopback connections (default: false, localhost connects without token). |
 | `-cors-origins` | _(empty)_ | Comma-separated list of allowed browser CORS origins (default: none / all cross-origin browser requests denied). |
 | `-data-dir` | `~/mlcartifact/storage` | Storage directory |
@@ -250,8 +254,12 @@ Global options:
 | Variable | Description |
 |---|---|
 | `ARTIFACT_GRPC_ADDR` | gRPC server address (default: `127.0.0.1:9590`) |
-| `ARTIFACT_GRPC_TOKEN` | Authentication token for remote access (also checks `ARTIFACT_TOKEN`; ignored for localhost unless required) |
-| `ARTIFACT_REQUIRE_TOKEN_LOCALHOST` | Set to `true` or `1` to require token even for localhost connections |
+| `ARTIFACT_GRPC_TOKEN` | Static authentication token for remote access (also checks `ARTIFACT_TOKEN`; ignored for localhost unless required) |
+| `ARTIFACT_AUTH_ENDPOINT` | Optional HTTP URL for token validation (Forward-Auth / Supabase) |
+| `ARTIFACT_AUTH_HEADERS` | Optional extra headers for auth endpoint (e.g. `apikey:xxx`) |
+| `ARTIFACT_AUTH_SERVICE_NAME` | Service claim check (default: `mlcartifact`) |
+| `ARTIFACT_AUTH_CACHE_TTL` | Cache duration for validated tokens (default: `60s`) |
+| `ARTIFACT_REQUIRE_TOKEN_LOCALHOST` | Set to `true` or `1` to require authentication even for localhost connections |
 | `ARTIFACT_CORS_ORIGINS` | Comma-separated list of allowed browser CORS origins |
 | `ARTIFACT_SOURCE` | Default source tag |
 | `ARTIFACT_USER_ID` | Default user ID |
@@ -263,9 +271,31 @@ Global options:
 `mlcartifact` is designed for secure-by-default operation:
 
 - **Localhost by default (Zero Config)**: Connections originating from loopback addresses (`127.0.0.1`, `::1`) do **not** require an authentication token by default. You can run the server locally and connect immediately with CLI or SDKs.
-- **Remote Access (Token Required)**: If the server listens on a non-loopback interface (e.g. `0.0.0.0` or a public IP), the server **requires** an authentication token for all remote requests. Configure the token on the server via `-grpc-token <token>` or `ARTIFACT_GRPC_TOKEN=<token>`.
+- **Remote Access (Authentication Required)**: If the server listens on a non-loopback interface (e.g. `0.0.0.0` or a public IP), the server **requires** authentication for all remote requests via either `-grpc-token` or `-auth-endpoint`.
 - **Enforcing Token on Localhost**: To require a token even for loopback connections (e.g. on shared developer machines), pass `-require-token-localhost` or set `ARTIFACT_REQUIRE_TOKEN_LOCALHOST=true`.
 - **CORS Protection**: Cross-origin browser requests are blocked by default. Specific allowed origins can be configured with `-cors-origins "https://example.com"`.
+
+### Pluggable Token Validation (mlcauth & Supabase)
+
+In addition to static tokens (`-grpc-token`), `mlcartifact` supports dynamic HTTP token validation via `-auth-endpoint`. When configured, incoming bearer tokens are validated in real-time with automatic in-memory TTL caching.
+
+#### 1. Forward-Auth (`mlcauth`)
+Validates tokens against an internal Forward-Auth service. The caller's identity (`X-User-ID`, `X-User-Role`) is automatically extracted from response headers, and the user's storage scope is strictly locked to their verified identity:
+```bash
+artifact-server -addr 0.0.0.0:8082 -grpc-addr 0.0.0.0:9590 \
+  -auth-endpoint "http://mlcauth:8080/auth/forward?svc=mlcartifact"
+```
+If the user lacks permission for `mlcartifact`, the auth service returns `403 Forbidden`, which `mlcartifact` rejects.
+
+#### 2. Supabase Auth (OAuth2 / UserInfo)
+Validates tokens against Supabase's Auth API and checks user permissions:
+```bash
+artifact-server -addr 0.0.0.0:8082 -grpc-addr 0.0.0.0:9590 \
+  -auth-endpoint "https://<your-project-id>.supabase.co/auth/v1/user" \
+  -auth-header "apikey:<SUPABASE_ANON_KEY>" \
+  -auth-service-name "mlcartifact"
+```
+The user ID is extracted from the JSON response (`id`/`sub`), and `app_metadata.services` is checked for the specified service name.
 
 ### Configuring Tokens in Clients
 

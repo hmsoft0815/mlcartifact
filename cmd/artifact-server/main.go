@@ -12,7 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 	"github.com/hmsoft0815/mlcartifact/internal/grpc"
 	artifactmcp "github.com/hmsoft0815/mlcartifact/internal/mcp"
 	"github.com/hmsoft0815/mlcartifact/internal/storage"
@@ -50,7 +52,7 @@ func dumpTools(ctx context.Context, s *mcp.Server) error {
 	if err != nil {
 		return err
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 	res, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		return err
@@ -104,6 +106,16 @@ func main() {
 	if envVal := os.Getenv("ARTIFACT_REQUIRE_TOKEN_LOCALHOST"); envVal == "true" || envVal == "1" {
 		defaultRequireLocalhost = true
 	}
+	defaultAuthEndpoint := os.Getenv("ARTIFACT_AUTH_ENDPOINT")
+	defaultAuthHeaders := os.Getenv("ARTIFACT_AUTH_HEADERS")
+	defaultAuthServiceName := os.Getenv("ARTIFACT_AUTH_SERVICE_NAME")
+	if defaultAuthServiceName == "" {
+		defaultAuthServiceName = "mlcartifact"
+	}
+	defaultAuthCacheTTL := os.Getenv("ARTIFACT_AUTH_CACHE_TTL")
+	if defaultAuthCacheTTL == "" {
+		defaultAuthCacheTTL = "60s"
+	}
 
 	dump := flag.Bool("dump", false, "Dump available tools as JSON and exit")
 	v := flag.Bool("version", false, "Print version and exit")
@@ -111,6 +123,10 @@ func main() {
 	grpcAddr := flag.String("grpc-addr", defaultGrpcAddr, "Listen address for gRPC service (default: '127.0.0.1:9590', or '0.0.0.0:9590' for all interfaces)")
 	grpcToken := flag.String("grpc-token", defaultGrpcToken, "Authentication token required for remote (non-loopback) access. Can also be set via ARTIFACT_GRPC_TOKEN.")
 	requireTokenLocalhost := flag.Bool("require-token-localhost", defaultRequireLocalhost, "Require authentication token even for localhost / loopback connections (default: false)")
+	authEndpoint := flag.String("auth-endpoint", defaultAuthEndpoint, "Optional HTTP Forward-Auth or OAuth2 UserInfo endpoint URL (e.g. mlcauth or Supabase) to validate tokens")
+	authHeaders := flag.String("auth-header", defaultAuthHeaders, "Optional comma-separated extra headers for auth-endpoint (e.g. 'apikey:xyz')")
+	authServiceName := flag.String("auth-service-name", defaultAuthServiceName, "Optional service name required in user claims/services (default: 'mlcartifact')")
+	authCacheTTL := flag.String("auth-cache-ttl", defaultAuthCacheTTL, "Cache duration for validated tokens (default: '60s')")
 	corsOrigins := flag.String("cors-origins", os.Getenv("ARTIFACT_CORS_ORIGINS"), "Comma-separated list of allowed CORS browser origins (default: none / cross-origin denied)")
 	mcpLimit := flag.Int("mcp-list-limit", 100, "Max artifacts to return in MCP list_artifacts")
 
@@ -125,6 +141,41 @@ func main() {
 		fmt.Printf("%s version: %s\n", name, version)
 		return
 	}
+
+	// Build TokenValidator (HTTP Forward-Auth / Supabase or static token)
+	var validator auth.TokenValidator
+	if *authEndpoint != "" {
+		var extraHeaders map[string]string
+		if *authHeaders != "" {
+			extraHeaders = make(map[string]string)
+			for _, part := range strings.Split(*authHeaders, ",") {
+				part = strings.TrimSpace(part)
+				if k, v, ok := strings.Cut(part, ":"); ok {
+					extraHeaders[strings.TrimSpace(k)] = strings.TrimSpace(v)
+				}
+			}
+		}
+		cacheDuration, err := time.ParseDuration(*authCacheTTL)
+		if err != nil {
+			slog.Error("invalid -auth-cache-ttl", "err", err)
+			os.Exit(1)
+		}
+		validator = auth.NewHTTPTokenValidator(auth.HTTPValidatorConfig{
+			Endpoint:     *authEndpoint,
+			ExtraHeaders: extraHeaders,
+			ServiceName:  *authServiceName,
+			CacheTTL:     cacheDuration,
+			Client:       &http.Client{Timeout: 5 * time.Second},
+		})
+		slog.Info("configured HTTP token validator",
+			"endpoint", *authEndpoint,
+			"service_name", *authServiceName,
+			"cache_ttl", cacheDuration,
+		)
+	} else if *grpcToken != "" {
+		validator = auth.NewStaticTokenValidator(*grpcToken)
+	}
+	hasAuth := validator != nil
 
 	// Parse allowed CORS origins
 	var allowedOrigins []string
@@ -143,8 +194,8 @@ func main() {
 		slog.Error("invalid -grpc-addr", "err", err)
 		os.Exit(1)
 	}
-	if !isGrpcLoopback && *grpcToken == "" {
-		slog.Error("-grpc-addr is not restricted to loopback, but no authentication token is configured (-grpc-token or ARTIFACT_GRPC_TOKEN)")
+	if !isGrpcLoopback && !hasAuth {
+		slog.Error("-grpc-addr is not restricted to loopback, but no authentication is configured (-grpc-token or -auth-endpoint)")
 		os.Exit(1)
 	}
 
@@ -157,8 +208,8 @@ func main() {
 			slog.Error("invalid -addr", "err", err)
 			os.Exit(1)
 		}
-		if !isAddrLoopback && *grpcToken == "" {
-			slog.Error("-addr is not restricted to loopback, but no authentication token is configured (-grpc-token or ARTIFACT_GRPC_TOKEN)")
+		if !isAddrLoopback && !hasAuth {
+			slog.Error("-addr is not restricted to loopback, but no authentication is configured (-grpc-token or -auth-endpoint)")
 			os.Exit(1)
 		}
 	}
@@ -184,8 +235,8 @@ func main() {
 		mux := http.NewServeMux()
 		path, handler := protoconnect.NewArtifactServiceHandler(
 			grpc.NewConnectServer(store),
-			connect.WithInterceptors(grpc.NewAuthInterceptor(
-				*grpcToken,
+			connect.WithInterceptors(grpc.NewAuthInterceptorWithValidator(
+				validator,
 				grpc.WithRequireTokenLocalhost(*requireTokenLocalhost),
 				grpc.WithTrustedOrigins(allowedOrigins),
 			)),
@@ -203,7 +254,7 @@ func main() {
 		slog.Info("Connect/gRPC server started",
 			"addr", resolvedGrpcAddr,
 			"loopback", isGrpcLoopback,
-			"remote_token_protected", *grpcToken != "",
+			"remote_token_protected", hasAuth,
 			"require_token_localhost", *requireTokenLocalhost,
 			"allowed_cors_origins", allowedOrigins,
 		)
@@ -241,7 +292,7 @@ func main() {
 		streamable := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{Stateless: true})
 		sse := mcp.NewSSEHandler(getServer, nil)
 
-		mcpAuth := grpc.HTTPAuthMiddleware(*grpcToken, *requireTokenLocalhost, allowedOrigins)
+		mcpAuth := grpc.HTTPAuthMiddlewareWithValidator(validator, *requireTokenLocalhost, allowedOrigins)
 
 		// Reject foreign browser origins (DNS rebinding protection).
 		cop := http.NewCrossOriginProtection()
@@ -255,7 +306,7 @@ func main() {
 		mux.Handle("/mcp", cop.Handler(mcpAuth(decodeBase64Headers(limitBody(streamable)))))
 		mux.Handle("/sse", cop.Handler(mcpAuth(limitBody(sse))))
 
-		if *grpcToken != "" {
+		if hasAuth {
 			// Protected Resource Metadata (RFC 9728) for MCP authentication discovery
 			prm := func(w http.ResponseWriter, r *http.Request) {
 				scheme := "http"
@@ -263,7 +314,7 @@ func main() {
 					scheme = "https"
 				}
 				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprintf(w, `{"resource":"%s://%s/mcp","bearer_methods_supported":["header"],"resource_name":"mlcartifact MCP","resource_documentation":"https://mlcgo.eu/products/mlcartifact/"}`,
+				_, _ = fmt.Fprintf(w, `{"resource":"%s://%s/mcp","bearer_methods_supported":["header"],"resource_name":"mlcartifact MCP","resource_documentation":"https://mlcgo.eu/products/mlcartifact/"}`,
 					scheme, r.Host)
 			}
 			mux.HandleFunc("/.well-known/oauth-protected-resource", prm)
@@ -272,7 +323,7 @@ func main() {
 
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			fmt.Fprintf(w, "ok %s v%s\n", name, version)
+			_, _ = fmt.Fprintf(w, "ok %s v%s\n", name, version)
 		})
 
 		slog.Info("HTTP server started",

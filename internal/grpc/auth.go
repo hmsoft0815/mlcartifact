@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/hmsoft0815/mlcartifact/internal/auth"
 )
 
 // IsLoopback reports whether the given address (in host:port or host format)
@@ -112,12 +113,20 @@ func WithTrustedOrigins(origins []string) AuthOption {
 	}
 }
 
-// NewAuthInterceptor creates a Connect unary interceptor that enforces authentication:
-// - Cross-origin browser requests with an untrusted Origin header are rejected immediately.
-// - If requireTokenLocalhost is false, loopback connections are allowed without a token.
-// - Remote requests (or loopback with requireTokenLocalhost=true) require a valid token matching expectedToken.
-// - If expectedToken is empty, non-exempt requests are rejected.
+// NewAuthInterceptor creates a Connect unary interceptor that enforces authentication
+// using a static expectedToken. If requireTokenLocalhost is false, loopback connections
+// are allowed without a token.
 func NewAuthInterceptor(expectedToken string, opts ...AuthOption) connect.UnaryInterceptorFunc {
+	var validator auth.TokenValidator
+	if expectedToken != "" {
+		validator = auth.NewStaticTokenValidator(expectedToken)
+	}
+	return NewAuthInterceptorWithValidator(validator, opts...)
+}
+
+// NewAuthInterceptorWithValidator creates a Connect unary interceptor that enforces authentication
+// using a pluggable TokenValidator (e.g. static token, mlcauth forward-auth, or Supabase).
+func NewAuthInterceptorWithValidator(validator auth.TokenValidator, opts ...AuthOption) connect.UnaryInterceptorFunc {
 	cfg := &authConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -139,32 +148,57 @@ func NewAuthInterceptor(expectedToken string, opts ...AuthOption) connect.UnaryI
 
 			// 2. Localhost bypass if not configured to require token
 			if isLocal && !cfg.requireTokenLocalhost {
+				// If a token was provided anyway, validate and attach identity
+				token := ExtractToken(req.Header())
+				if token != "" && validator != nil {
+					if id, err := validator.ValidateToken(ctx, token); err == nil {
+						ctx = auth.WithAuthIdentity(ctx, id)
+					}
+				}
 				return next(ctx, req)
 			}
 
 			// 3. Token verification (remote access or requireTokenLocalhost=true)
-			if expectedToken == "" {
+			if validator == nil {
 				return nil, connect.NewError(
 					connect.CodeUnauthenticated,
-					errors.New("unauthenticated: no authentication token configured on server"),
+					errors.New("unauthenticated: no authentication token or validator configured on server"),
 				)
 			}
 
 			token := ExtractToken(req.Header())
-			if !ValidateToken(token, expectedToken) {
+			if token == "" {
 				return nil, connect.NewError(
 					connect.CodeUnauthenticated,
-					errors.New("unauthenticated: invalid or missing token"),
+					auth.ErrUnauthenticated,
 				)
 			}
 
+			identity, err := validator.ValidateToken(ctx, token)
+			if err != nil {
+				if errors.Is(err, auth.ErrForbidden) {
+					return nil, connect.NewError(connect.CodePermissionDenied, err)
+				}
+				return nil, connect.NewError(connect.CodeUnauthenticated, err)
+			}
+
+			ctx = auth.WithAuthIdentity(ctx, identity)
 			return next(ctx, req)
 		}
 	}
 }
 
-// HTTPAuthMiddleware creates standard HTTP middleware for token authentication (e.g. for MCP HTTP/SSE).
+// HTTPAuthMiddleware creates standard HTTP middleware for static token authentication.
 func HTTPAuthMiddleware(expectedToken string, requireLocalhost bool, trustedOrigins []string) func(http.Handler) http.Handler {
+	var validator auth.TokenValidator
+	if expectedToken != "" {
+		validator = auth.NewStaticTokenValidator(expectedToken)
+	}
+	return HTTPAuthMiddlewareWithValidator(validator, requireLocalhost, trustedOrigins)
+}
+
+// HTTPAuthMiddlewareWithValidator creates standard HTTP middleware using a pluggable TokenValidator.
+func HTTPAuthMiddlewareWithValidator(validator auth.TokenValidator, requireLocalhost bool, trustedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 1. Check Origin header
@@ -179,24 +213,42 @@ func HTTPAuthMiddleware(expectedToken string, requireLocalhost bool, trustedOrig
 
 			// 2. Localhost bypass if not requiring token locally
 			if isLocal && !requireLocalhost {
+				token := ExtractToken(r.Header)
+				if token != "" && validator != nil {
+					if id, err := validator.ValidateToken(r.Context(), token); err == nil {
+						r = r.WithContext(auth.WithAuthIdentity(r.Context(), id))
+					}
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
 
 			// 3. Token check
-			if expectedToken == "" {
+			if validator == nil {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="mlcartifact"`)
-				http.Error(w, "unauthorized: no authentication token configured on server", http.StatusUnauthorized)
+				http.Error(w, "unauthorized: no authentication token or validator configured on server", http.StatusUnauthorized)
 				return
 			}
 
 			token := ExtractToken(r.Header)
-			if !ValidateToken(token, expectedToken) {
+			if token == "" {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="mlcartifact"`)
 				http.Error(w, "unauthorized: invalid or missing token", http.StatusUnauthorized)
 				return
 			}
 
+			identity, err := validator.ValidateToken(r.Context(), token)
+			if err != nil {
+				if errors.Is(err, auth.ErrForbidden) {
+					http.Error(w, err.Error(), http.StatusForbidden)
+					return
+				}
+				w.Header().Set("WWW-Authenticate", `Bearer realm="mlcartifact"`)
+				http.Error(w, "unauthorized: invalid or missing token", http.StatusUnauthorized)
+				return
+			}
+
+			r = r.WithContext(auth.WithAuthIdentity(r.Context(), identity))
 			next.ServeHTTP(w, r)
 		})
 	}

@@ -33,3 +33,7 @@ __pycache__/
 # Lokale Agent-/Werkzeug-Konfiguration (nur in lokalen Repos einchecken)
 .mcp.json
 cbm.yaml
+
+# private Klone (dochub-cli mlcai attach) — nicht Teil dieses Repos
+/.mlcai/
+/mlcprodweb/

@@ -1,14 +1,5 @@
 <!-- mlc-dochub:begin — auto-managed, do not edit between these markers -->
-## MLC Doc Hub — mlcartifact
-
-Structured documentation lives in `.mlcai/`, maintained through the
-`mlc-dochub` MCP server.
-
-- **Project ID:** `mlcartifact` — mlcartifact
-
-### Product marketing page (separate concern)
-
-Customer-facing marketing copy is **not** project documentation. It lives in
-`./mlcprodweb/`, and not public available
-
+Project docs: MLC Doc Hub — MCP server `mlc-dochub`, project `mlcartifact`.
+Its tools write `.mlcai/`; without them, read it but don't edit it.
+Marketing copy lives in `./mlcprodweb/` — not project documentation.
 <!-- mlc-dochub:end -->
